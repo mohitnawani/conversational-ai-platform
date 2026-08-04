@@ -5,7 +5,7 @@ from services.buffer_memory import BufferMemory
 from services import summary_memory
 from services import entity_memory
 from services.chain_builder import run_conversation
-
+from services import kg_memory
 msg_bp = Blueprint("messages", __name__)
 
 @msg_bp.route("/<conv_id>/message", methods=["POST"])
@@ -32,6 +32,11 @@ def send_message(conv_id):
         memory_context = entity_memory.get_entity_context(conv_id)
         history = BufferMemory().get_context(conv_id)  # still send recent raw messages too
 
+    elif conv.memory_type == "kg":
+        kg_memory.update_graph(conv_id, user_text, source_message_id=user_msg.id)
+        memory_context = kg_memory.get_graph_context(conv_id)
+        history = BufferMemory().get_context(conv_id)
+        
     else:  # default: buffer
         history = BufferMemory().get_context(conv_id)
         memory_context = ""
