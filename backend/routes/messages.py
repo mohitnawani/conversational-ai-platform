@@ -3,6 +3,7 @@ from models.database import db, Conversation, Message
 from services.context_manager import count_tokens
 from services.buffer_memory import BufferMemory
 from services import summary_memory
+from services import entity_memory
 from services.chain_builder import run_conversation
 
 msg_bp = Blueprint("messages", __name__)
@@ -25,7 +26,13 @@ def send_message(conv_id):
         ctx = summary_memory.get_context(conv_id)
         history = ctx["recent_messages"]
         memory_context = f"Conversation summary so far: {ctx['summary']}" if ctx["summary"] else ""
-    else:
+
+    elif conv.memory_type == "entity":
+        entity_memory.update_entities(conv_id, user_text)
+        memory_context = entity_memory.get_entity_context(conv_id)
+        history = BufferMemory().get_context(conv_id)  # still send recent raw messages too
+
+    else:  # default: buffer
         history = BufferMemory().get_context(conv_id)
         memory_context = ""
 
@@ -38,4 +45,4 @@ def send_message(conv_id):
     db.session.add(ai_msg)
     db.session.commit()
 
-    return jsonify({"user_message": user_msg.to_dict(), "ai_message": ai_msg.to_dict()})
+    return jsonify({"user_message": user_msg.to_dict(), "ai_message": ai_msg.to_dict()})    
