@@ -2,16 +2,6 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*.pyo
-*.pyd
-*.pyc
-*.pyd
-*.pyo
-*.pyt
-*.pyc
-*.pyo
-*.pyd
-*
 .venv/
 venv/
 env/
@@ -29,44 +19,3 @@ instance/
 .pytype/
 htmlcov/
 .tox/
-
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-package-lock.json
-pnpm-lock.yaml
-yarn.lock
-
-# Build
-dist/
-build/
-.vite/
-
-# IDE
-.vscode/
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-.DS_Store
-Thumbs.db
-
-# Editor backups
-*~
-*.swp
-*.tmp
-*.temp
-
-# Logs
-*.log
-logs/
-
-# OS
-Desktop.ini
-
-# Misc
-coverage.xml
