@@ -1,6 +1,6 @@
 from datetime import datetime
 from models.database import db, Message, ConversationSummary
-from services.llm_client import model
+from services.llm_client import model, extract_text
 from langchain_core.prompts import ChatPromptTemplate
 
 SUMMARY_TRIGGER_EVERY_N = 5
@@ -44,7 +44,7 @@ def maybe_summarize(conversation_id: str):
 
     new_summary = ConversationSummary(
         conversation_id=conversation_id,
-        summary_text=result.content,
+        summary_text=extract_text(result.content),
         messages_covered_until=new_messages[-1].created_at,
     )
     db.session.add(new_summary)

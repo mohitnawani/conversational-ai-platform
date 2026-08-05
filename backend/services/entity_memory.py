@@ -1,6 +1,6 @@
 import json
 from models.database import db, Entity
-from services.llm_client import model
+from services.llm_client import model, extract_text
 from langchain_core.prompts import ChatPromptTemplate
 
 extraction_prompt = ChatPromptTemplate.from_template(
@@ -15,43 +15,79 @@ extraction_prompt = ChatPromptTemplate.from_template(
 def extract_entities(message_text: str) -> list[dict]:
     chain = extraction_prompt | model
     result = chain.invoke({"message": message_text})
-    raw = result.content.strip()
+    # Gemini can return content as a list of blocks instead of a plain string.
+    # Convert it before parsing so SQLAlchemy never receives the raw list.
+    raw = extract_text(result.content).strip()
 
     if raw.startswith("```"):
         raw = raw.strip("`")
         raw = raw.replace("json", "", 1).strip()
 
     try:
-        return json.loads(raw)
+        extracted = json.loads(raw)
+        return extracted if isinstance(extracted, list) else []
     except json.JSONDecodeError:
         return []
+
+
+def _normalize_name(name: str) -> str:
+    return " ".join(name.split()).lower()
 
 
 def update_entities(conversation_id: str, message_text: str):
     extracted = extract_entities(message_text)
 
+    seen = set()
     for item in extracted:
         name = item.get("name", "").strip()
         if not name:
             continue
 
-        existing = Entity.query.filter_by(
-            conversation_id=conversation_id, name=name
+        key = _normalize_name(name)
+        if key in seen:  # same entity listed twice in one message
+            continue
+        seen.add(key)
+
+        existing = Entity.query.filter(
+            Entity.conversation_id == conversation_id,
+            db.func.lower(Entity.name) == name.lower(),
         ).first()
 
         if existing:
             existing.description = item.get("description", existing.description)
             existing.entity_type = item.get("type", existing.entity_type)
         else:
-            new_entity = Entity(
+            db.session.add(Entity(
                 conversation_id=conversation_id,
                 name=name,
                 entity_type=item.get("type", "other"),
                 description=item.get("description", ""),
-            )
-            db.session.add(new_entity)
+            ))
 
     db.session.commit()
+
+
+def dedupe_entities(conversation_id: str) -> int:
+    """Merge existing duplicate rows (case/whitespace variants) into one. Run once."""
+    entities = Entity.query.filter_by(conversation_id=conversation_id) \
+        .order_by(Entity.created_at).all()
+
+    keepers, removed = {}, 0
+    for e in entities:
+        key = _normalize_name(e.name)
+        if key in keepers:
+            keeper = keepers[key]
+            if e.description and not keeper.description:
+                keeper.description = e.description
+            if e.entity_type and keeper.entity_type in (None, "other"):
+                keeper.entity_type = e.entity_type
+            db.session.delete(e)
+            removed += 1
+        else:
+            keepers[key] = e
+
+    db.session.commit()
+    return removed
 
 
 def get_entity_context(conversation_id: str) -> str:
