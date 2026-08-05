@@ -7,11 +7,30 @@ db = SQLAlchemy()
 def gen_uuid():
     return str(uuid.uuid4())
 
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.String, primary_key=True, default=gen_uuid)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    conversations = db.relationship("Conversation", backref="owner", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "created_at": self.created_at.isoformat(),
+        }
+
+
 class Conversation(db.Model):
     __tablename__ = "conversations"
     id = db.Column(db.String, primary_key=True, default=gen_uuid)
+    user_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
     title = db.Column(db.String(255), default="New Conversation")
     memory_type = db.Column(db.String(20), default="buffer")  # buffer | summary | entity | kg | hybrid
+    persona = db.Column(db.String(50), default="mentor")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -23,6 +42,7 @@ class Conversation(db.Model):
             "id": self.id,
             "title": self.title,
             "memory_type": self.memory_type,
+            "persona": self.persona,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "message_count": len(self.messages),
