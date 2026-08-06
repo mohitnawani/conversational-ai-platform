@@ -1,10 +1,21 @@
+import { Link } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { ArrowRight } from 'lucide-react'
 import { registerSchema, type RegisterFormValues } from '@/lib/validators'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { register as registerUser } from '@/store/authSlice'
+import { AuthShell } from '@/components/auth/AuthShell'
+import {
+  ErrorAlert,
+  Field,
+  FormCard,
+  PasswordInput,
+  SubmitButton,
+} from '@/components/auth/Form'
+import { inputClass } from '@/components/auth/inputStyles'
 
-export function RegisterPage({ onShowLogin }: { onShowLogin: () => void }) {
+export function RegisterPage() {
   const dispatch = useAppDispatch()
   const { status, error } = useAppSelector((s) => s.auth)
   const loading = status === 'loading'
@@ -29,106 +40,92 @@ export function RegisterPage({ onShowLogin }: { onShowLogin: () => void }) {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-base-200 p-4">
-      <div className="card w-full max-w-sm bg-base-100 shadow-xl">
-        <div className="card-body">
-          <h1 className="card-title text-2xl">Create an account</h1>
-          <p className="text-sm text-base-content/60">
-            Password needs 8+ characters with a lowercase, uppercase, and number.
+    <AuthShell>
+      <FormCard>
+        <header className="space-y-2">
+          <p className="font-mono text-eyebrow uppercase text-primary">
+            <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />
+            Join mnemo
           </p>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-4">
-            <div>
-              <label className="label" htmlFor="name">
-                <span className="label-text">Name</span>
-              </label>
-              <input
-                id="name"
-                type="text"
-                placeholder="Your name"
-                className={`input input-bordered w-full ${errors.name ? 'input-error' : ''}`}
-                autoComplete="name"
-                {...register('name')}
-              />
-              {errors.name && (
-                <p className="mt-1 text-xs text-error">{errors.name.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="label" htmlFor="email">
-                <span className="label-text">Email</span>
-              </label>
-              <input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                className={`input input-bordered w-full ${errors.email ? 'input-error' : ''}`}
-                autoComplete="email"
-                {...register('email')}
-              />
-              {errors.email && (
-                <p className="mt-1 text-xs text-error">{errors.email.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="label" htmlFor="password">
-                <span className="label-text">Password</span>
-              </label>
-              <input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                className={`input input-bordered w-full ${errors.password ? 'input-error' : ''}`}
-                autoComplete="new-password"
-                {...register('password')}
-              />
-              {errors.password && (
-                <p className="mt-1 text-xs text-error">{errors.password.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="label" htmlFor="confirmPassword">
-                <span className="label-text">Confirm password</span>
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                placeholder="••••••••"
-                className={`input input-bordered w-full ${errors.confirmPassword ? 'input-error' : ''}`}
-                autoComplete="new-password"
-                {...register('confirmPassword')}
-              />
-              {errors.confirmPassword && (
-                <p className="mt-1 text-xs text-error">{errors.confirmPassword.message}</p>
-              )}
-            </div>
-
-            {error && (
-              <div role="alert" className="alert alert-error py-2 text-sm">
-                <span>{error}</span>
-              </div>
-            )}
-
-            <button type="submit" className="btn btn-primary w-full" disabled={loading}>
-              {loading ? 'Creating account…' : 'Sign up'}
-            </button>
-          </form>
-
-          <p className="mt-2 text-center text-sm text-base-content/60">
-            Already have an account?{' '}
-            <button
-              type="button"
-              onClick={onShowLogin}
-              className="link link-primary font-medium"
-            >
-              Sign in
-            </button>
+          <h1 className="font-display text-heading font-semibold text-base-content">
+            Create your workspace
+          </h1>
+          <p className="text-body text-base-content/60">
+            Start talking — Mnemo remembers names, facts, and threads as you go.
           </p>
-        </div>
-      </div>
-    </div>
+        </header>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
+          <Field id="name" label="Name" error={errors.name?.message}>
+            <input
+              id="name"
+              type="text"
+              placeholder="Alex Rivera"
+              autoComplete="name"
+              aria-invalid={!!errors.name}
+              aria-describedby={errors.name ? 'name-error' : undefined}
+              className={inputClass(!!errors.name)}
+              {...register('name')}
+            />
+          </Field>
+
+          <Field id="email" label="Email" error={errors.email?.message}>
+            <input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? 'email-error' : undefined}
+              className={inputClass(!!errors.email)}
+              {...register('email')}
+            />
+          </Field>
+
+          <Field
+            id="password"
+            label="Password"
+            hint="8+ chars, mixed case & a number"
+            error={errors.password?.message}
+          >
+            <PasswordInput
+              id="password"
+              placeholder="Choose a password"
+              autoComplete="new-password"
+              invalid={!!errors.password}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+              {...register('password')}
+            />
+          </Field>
+
+          <Field id="confirmPassword" label="Confirm password" error={errors.confirmPassword?.message}>
+            <PasswordInput
+              id="confirmPassword"
+              placeholder="Repeat it once more"
+              autoComplete="new-password"
+              invalid={!!errors.confirmPassword}
+              aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
+              {...register('confirmPassword')}
+            />
+          </Field>
+
+          {error ? <ErrorAlert message={error} /> : null}
+
+          <SubmitButton loading={loading} label="Create account" loadingLabel="Creating…" />
+        </form>
+
+        <p className="mt-7 text-center text-body text-base-content/60">
+          Already have a workspace?{' '}
+          <Link
+            to="/login"
+            className="group inline-flex items-center gap-1 font-medium text-primary underline decoration-primary/40 underline-offset-4 transition-colors hover:text-primary/80 hover:decoration-primary/70"
+          >
+            Sign in
+            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </p>
+      </FormCard>
+    </AuthShell>
   )
 }
+

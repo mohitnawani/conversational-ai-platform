@@ -1,37 +1,91 @@
 @import "tailwindcss";
-@plugin "daisyui";
-
+@plugin "daisyui" {
+  themes: false;
+}
 @plugin "daisyui/theme" {
-  name: "light";
+  name: "mnemo";
   default: true;
   prefersdark: false;
   color-scheme: light;
   --color-base-100: oklch(100% 0 0);
-  --color-base-200: oklch(96.8% 0.001 286.375);
-  --color-base-300: oklch(92.5% 0.001 286.375);
-  --color-base-content: oklch(14.5% 0 0);
-  --color-primary: oklch(20.5% 0 0);
-  --color-primary-content: oklch(98.5% 0 0);
-  --color-secondary: oklch(56% 0.2 260);
-  --color-secondary-content: oklch(98.5% 0 0);
-  --color-accent: oklch(72% 0.18 350);
-  --color-accent-content: oklch(15% 0.02 350);
-  --color-neutral: oklch(20.5% 0 0);
-  --color-neutral-content: oklch(98.5% 0 0);
-  --color-info: oklch(60% 0.12 220);
+  --color-base-200: oklch(96.6% 0.004 165);
+  --color-base-300: oklch(93.2% 0.006 165);
+  --color-base-content: oklch(23% 0.02 250);
+  --color-primary: oklch(45% 0.13 262);
+  --color-primary-content: oklch(99% 0 0);
+  --color-secondary: oklch(63% 0.11 78);
+  --color-secondary-content: oklch(24% 0.02 78);
+  --color-accent: oklch(72% 0.07 262);
+  --color-accent-content: oklch(23% 0.02 250);
+  --color-neutral: oklch(23% 0.02 250);
+  --color-neutral-content: oklch(99% 0 0);
+  --color-info: oklch(60% 0.1 250);
   --color-info-content: oklch(98% 0 0);
-  --color-success: oklch(62% 0.17 150);
-  --color-success-content: oklch(15% 0.02 150);
-  --color-warning: oklch(78% 0.16 80);
-  --color-warning-content: oklch(20% 0.02 80);
-  --color-error: oklch(57.7% 0.245 27.325);
-  --color-error-content: oklch(98% 0 0);
-  --radius-selector: 0.5rem;
-  --radius-field: 0.5rem;
-  --radius-box: 0.5rem;
+  --color-success: oklch(62% 0.13 155);
+  --color-success-content: oklch(99% 0 0);
+  --color-warning: oklch(78% 0.13 80);
+  --color-warning-content: oklch(22% 0.02 80);
+  --color-error: oklch(55% 0.19 25);
+  --color-error-content: oklch(99% 0 0);
+  --radius-selector: 0.75rem;
+  --radius-field: 0.625rem;
+  --radius-box: 1.25rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
   --depth: 1;
   --noise: 0;
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1.4;
+  --text-eyebrow--letter-spacing: 0.18em;
+  --text-eyebrow--font-weight: 600;
+
+  --text-helper: 0.75rem;
+  --text-helper--line-height: 1.4;
+
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.6;
+
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.4;
+  --text-label--font-weight: 500;
+
+  --text-input: 0.875rem;
+  --text-input--line-height: 1.5;
+
+  --text-heading: 1.75rem;
+  --text-heading--line-height: 1.15;
+  --text-heading--letter-spacing: -0.02em;
+
+  --text-hero: 2.5rem;
+  --text-hero--line-height: 1.08;
+  --text-hero--letter-spacing: -0.02em;
+}
+
+@utility bg-graph {
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--color-primary) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--color-primary) 8%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-base-200);
+  }
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background-color: var(--color-primary);
+    color: var(--color-primary-content);
+  }
 }
