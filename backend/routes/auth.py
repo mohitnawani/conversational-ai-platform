@@ -1,7 +1,14 @@
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
+from flask_jwt_extended import (
+    create_access_token,
+    jwt_required,
+    get_jwt_identity,
+    get_jwt,
+    set_access_cookies,
+    unset_jwt_cookies,
+)
 from pydantic import ValidationError
 from models.database import db, User
 from services import token_blocklist
@@ -29,12 +36,18 @@ def register():
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "email already registered"}), 409
 
-    user = User(email=email, password_hash=generate_password_hash(payload.password))
+    user = User(
+        name=payload.name.strip(),
+        email=email,
+        password_hash=generate_password_hash(payload.password),
+    )
     db.session.add(user)
     db.session.commit()
 
     token = create_access_token(identity=user.id)
-    return jsonify({"token": token, "user": user.to_dict()}), 201
+    response = jsonify({"user": user.to_dict()})
+    set_access_cookies(response, token)
+    return response, 201
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -51,7 +64,9 @@ def login():
         return jsonify({"error": "invalid email or password"}), 401
 
     token = create_access_token(identity=user.id)
-    return jsonify({"token": token, "user": user.to_dict()})
+    response = jsonify({"user": user.to_dict()})
+    set_access_cookies(response, token)
+    return response
 
 
 @auth_bp.route("/logout", methods=["POST"])
@@ -60,7 +75,10 @@ def logout():
     token = get_jwt()
     ttl = token["exp"] - int(datetime.now(timezone.utc).timestamp())
     token_blocklist.revoke(token["jti"], max(ttl, 1))
-    return jsonify({"message": "logged out"})
+
+    response = jsonify({"message": "logged out"})
+    unset_jwt_cookies(response)
+    return response
 
 
 @auth_bp.route("/me", methods=["GET"])

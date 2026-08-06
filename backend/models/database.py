@@ -10,6 +10,7 @@ def gen_uuid():
 class User(db.Model):
     __tablename__ = "users"
     id = db.Column(db.String, primary_key=True, default=gen_uuid)
+    name = db.Column(db.String(255), nullable=False, default="")
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -19,6 +20,7 @@ class User(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
+            "name": self.name,
             "email": self.email,
             "created_at": self.created_at.isoformat(),
         }
