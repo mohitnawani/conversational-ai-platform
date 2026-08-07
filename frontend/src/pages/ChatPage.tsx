@@ -20,6 +20,7 @@ import { MessageBubble } from '@/components/chat/MessageBubble'
 import { SourceDrawer } from '@/components/chat/SourceDrawer'
 import { MemoryPanel } from '@/components/chat/MemoryPanel'
 import { Composer } from '@/components/chat/Composer'
+import { getCustomPersonas } from '@/components/chat/personas'
 import type { Message, Source } from '@/types/conversation'
 
 /*
@@ -125,8 +126,12 @@ export function ChatPage() {
   const [memoryOpen, setMemoryOpen] = useState(false)
 
   const activePersona = customOverride ?? conversation?.persona ?? personas[0]?.id ?? 'mentor'
-  const personaName =
-    personas.find((p) => p.id === activePersona)?.name ?? activePersona.toUpperCase()
+  const customPersona = customOverride
+    ? getCustomPersonas().find((persona) => persona.id === customOverride)
+    : undefined
+  const personaName = customPersona?.name
+    ?? personas.find((p) => p.id === activePersona)?.name
+    ?? activePersona.toUpperCase()
 
   useEffect(() => {
     if (conversationId) {
@@ -151,7 +156,13 @@ export function ChatPage() {
   }, [dispatch])
 
   useEffect(() => {
-    setCustomOverride(null)
+    const savedId = conversationId
+      ? localStorage.getItem(`mnemo:conversation-persona:${conversationId}`)
+      : null
+    const savedPersona = savedId
+      ? getCustomPersonas().find((persona) => persona.id === savedId)
+      : undefined
+    setCustomOverride(savedPersona ? savedPersona.id : null)
     setDrawerOpen(false)
   }, [conversationId])
 
@@ -186,9 +197,15 @@ export function ChatPage() {
   function handlePersonaSelect(id: string) {
     if (id.startsWith('custom-')) {
       setCustomOverride(id)
+      if (conversationId) {
+        localStorage.setItem(`mnemo:conversation-persona:${conversationId}`, id)
+      }
       return
     }
     setCustomOverride(null)
+    if (conversationId) {
+      localStorage.removeItem(`mnemo:conversation-persona:${conversationId}`)
+    }
     if (conversationId && id !== conversation?.persona) {
       dispatch(updatePersona({ id: conversationId, persona: id }))
     }
@@ -205,7 +222,11 @@ export function ChatPage() {
     const trimmed = value.trim()
     if (!trimmed) return
     setText('')
-    await dispatch(streamMessage({ conversationId, text: trimmed }))
+    await dispatch(streamMessage({
+      conversationId,
+      text: trimmed,
+      systemPrompt: customPersona?.system || undefined,
+    }))
   }
 
   function handleComposerSubmit(e: FormEvent) {
@@ -239,7 +260,7 @@ export function ChatPage() {
     <MainLayout title={conversation?.title}>
       <PersonaBar personas={personas} activeId={activePersona} onSelect={handlePersonaSelect} />
 
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <button
           type="button"
           onClick={() => setMemoryOpen((prev) => !prev)}

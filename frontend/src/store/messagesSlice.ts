@@ -36,17 +36,22 @@ export const fetchMessages = createAsyncThunk(
 interface SendOptions {
   conversationId: string
   text: string
+  /** Browser-saved custom persona instructions, if one is active. */
+  systemPrompt?: string
 }
 
 /** Non-streaming JSON fallback (still used if the stream can't start). */
 export const sendMessage = createAsyncThunk(
   'messages/send',
-  async ({ conversationId, text }: SendOptions) => {
+  async ({ conversationId, text, systemPrompt }: SendOptions) => {
     const { data } = await axiosClient.post<{
       user_message: Message
       ai_message: Message
       conversation: Conversation
-    }>(`/conversations/${conversationId}/message`, { message: text })
+    }>(`/conversations/${conversationId}/message`, {
+      message: text,
+      system_prompt: systemPrompt,
+    })
     return {
       conversationId,
       userMessage: data.user_message,
@@ -73,7 +78,7 @@ interface StreamResult {
  */
 export const streamMessage = createAsyncThunk<StreamResult, SendOptions>(
   'messages/stream',
-  async ({ conversationId, text }, { dispatch, rejectWithValue }) => {
+  async ({ conversationId, text, systemPrompt }, { dispatch, rejectWithValue }) => {
     let res: Response
     try {
       res = await fetch(
@@ -85,12 +90,12 @@ export const streamMessage = createAsyncThunk<StreamResult, SendOptions>(
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': csrfToken(),
           },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({ message: text, system_prompt: systemPrompt }),
         },
       )
       if (!res.ok) throw new Error(`Request failed with status ${res.status}`)
     } catch {
-      const res2 = await dispatch(sendMessage({ conversationId, text }))
+      const res2 = await dispatch(sendMessage({ conversationId, text, systemPrompt }))
       if (sendMessage.fulfilled.match(res2) && res2.payload.conversation) {
         // keep sidebar title in sync when the backend auto-names the chat
         dispatch({

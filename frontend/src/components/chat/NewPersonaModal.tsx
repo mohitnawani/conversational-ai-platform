@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { CUSTOM_EVENT, PERSONA_ICONS, saveCustomPersona } from './personas'
 
@@ -10,19 +11,28 @@ export function NewPersonaModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
   const [system, setSystem] = useState('')
   const [iconIdx, setIconIdx] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function save() {
+  async function save() {
     const trimmed = name.trim()
     if (!trimmed) return
-    const id = `custom-${Date.now()}`
-    saveCustomPersona({ id, name: trimmed, system: system.trim(), icon: iconIdx })
-    window.dispatchEvent(new Event(CUSTOM_EVENT))
-    onClose()
+    setSaving(true)
+    setError(null)
+    try {
+      await saveCustomPersona({ name: trimmed, system: system.trim(), icon: iconIdx })
+      window.dispatchEvent(new Event(CUSTOM_EVENT))
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create persona')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-label="New persona"
@@ -32,7 +42,7 @@ export function NewPersonaModal({ onClose }: { onClose: () => void }) {
         className="absolute inset-0 cursor-default bg-black/50"
         onClick={onClose}
       />
-      <div className="stagger relative w-full max-w-md rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl">
+      <div className="stagger relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 p-6 shadow-2xl">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl font-medium text-paper-100">New persona</h2>
           <button
@@ -94,16 +104,18 @@ export function NewPersonaModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="mt-6 flex items-center gap-3">
+          {error && <p role="alert" className="mr-auto text-xs text-red-danger">{error}</p>}
           <button
             type="button"
             onClick={save}
-            disabled={!name.trim()}
+            disabled={!name.trim() || saving}
             className="ml-auto rounded-lg bg-amber-index px-4 py-2 text-sm font-medium text-ink-950 transition-colors duration-150 hover:bg-amber-index-deep disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Create persona
+            {saving ? 'Creating…' : 'Create persona'}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

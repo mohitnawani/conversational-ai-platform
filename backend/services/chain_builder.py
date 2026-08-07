@@ -1,10 +1,14 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from services.llm_client import model, extract_text
+from models.database import db
 
 from langchain_core.prompts import ChatPromptTemplate
 from services.llm_client import model
 from services import entity_memory, kg_memory, summary_memory
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant. {memory_context}"
 
@@ -146,17 +150,25 @@ async def stream_parallel(
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for result, kind in zip(results, writers):
                 if isinstance(result, BaseException):
+                    logger.warning("%s memory extraction failed: %s", kind, result)
                     continue
-                if kind == "entity":
-                    entity_memory.save_entities(conversation_id, result)
-                elif kind == "kg":
-                    kg_memory.save_triples(conversation_id, result, source_message_id)
-                elif kind == "summary" and result:
-                    summary_memory.save_summary(
-                        conversation_id,
-                        result["text"],
-                        result["messages_covered_until"],
-                    )
+                try:
+                    if kind == "entity":
+                        entity_memory.save_entities(conversation_id, result)
+                    elif kind == "kg":
+                        kg_memory.save_triples(conversation_id, result, source_message_id)
+                    elif kind == "summary" and result:
+                        summary_memory.save_summary(
+                            conversation_id,
+                            result["text"],
+                            result["messages_covered_until"],
+                        )
+                except Exception:
+                    # Memory enrichment is optional.  Never let a failed
+                    # entity/KG/summary write discard an otherwise complete
+                    # assistant reply before the message endpoint saves it.
+                    db.session.rollback()
+                    logger.exception("Failed to save %s memory", kind)
 
 
 async def run_parallel_pipeline(

@@ -127,3 +127,24 @@ class MemoryBackfill(db.Model):
     entity_done = db.Column(db.Boolean, default=False)
     kg_done = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class UserPersona(db.Model):
+    """A user-created persona and its instructions."""
+
+    __tablename__ = "user_personas"
+    id = db.Column(db.String, primary_key=True, default=gen_uuid)
+    user_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False, index=True)
+    name = db.Column(db.String(80), nullable=False)
+    system_prompt = db.Column(db.Text, nullable=False, default="")
+    icon = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": f"custom-{self.id}",
+            "name": self.name,
+            "system": self.system_prompt,
+            "icon": self.icon,
+            "created_at": self.created_at.isoformat(),
+        }

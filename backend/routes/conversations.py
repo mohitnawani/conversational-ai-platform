@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models.database import db, Conversation, Entity, KGTriple, ConversationSummary, PersonaMemory
+from models.database import (
+    db, Conversation, Entity, KGTriple, ConversationSummary, PersonaMemory, UserPersona,
+)
 from services.personas import get_persona, list_personas as get_all_personas, effective_memory_type
 from services.memory_manager import STRATEGIES
 from services.memory_backfill import ensure_backfill
@@ -58,6 +60,42 @@ def create_conversation():
 @conv_bp.route("/personas", methods=["GET"])
 def list_personas():
     return jsonify(get_all_personas())
+
+
+@conv_bp.route("/personas/custom", methods=["GET"])
+@jwt_required()
+def list_custom_personas():
+    personas = UserPersona.query.filter_by(user_id=_current_user_id()) \
+        .order_by(UserPersona.created_at.asc()).all()
+    return jsonify([persona.to_dict() for persona in personas])
+
+
+@conv_bp.route("/personas/custom", methods=["POST"])
+@jwt_required()
+def create_custom_persona():
+    data = request.get_json() or {}
+    name = str(data.get("name", "")).strip()
+    system_prompt = str(data.get("system", "")).strip()
+    icon = data.get("icon", 0)
+
+    if not name:
+        return jsonify({"error": "persona name is required"}), 400
+    if len(name) > 80:
+        return jsonify({"error": "persona name must be 80 characters or fewer"}), 400
+    if len(system_prompt) > 4000:
+        return jsonify({"error": "system instructions must be 4000 characters or fewer"}), 400
+    if not isinstance(icon, int) or not 0 <= icon <= 5:
+        return jsonify({"error": "invalid persona icon"}), 400
+
+    persona = UserPersona(
+        user_id=_current_user_id(),
+        name=name,
+        system_prompt=system_prompt,
+        icon=icon,
+    )
+    db.session.add(persona)
+    db.session.commit()
+    return jsonify(persona.to_dict()), 201
 
 
 @conv_bp.route("/personas/memory", methods=["GET"])
