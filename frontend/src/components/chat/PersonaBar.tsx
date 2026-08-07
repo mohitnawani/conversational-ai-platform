@@ -4,6 +4,7 @@ import type { Persona } from '@/types/conversation'
 import {
   CUSTOM_EVENT,
   getCustomPersonas,
+  syncCustomPersonas,
   personaIcon,
   PERSONA_ICONS,
   type CustomPersona,
@@ -68,7 +69,7 @@ export function PersonaBar({ personas, activeId, onSelect }: PersonaBarProps) {
 
   useEffect(() => {
     const load = () => setCustom(getCustomPersonas())
-    load()
+    void syncCustomPersonas().catch(() => undefined).finally(load)
     window.addEventListener(CUSTOM_EVENT, load)
     return () => window.removeEventListener(CUSTOM_EVENT, load)
   }, [])

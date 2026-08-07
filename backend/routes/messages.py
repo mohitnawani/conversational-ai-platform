@@ -35,6 +35,16 @@ def _touch(conv: Conversation):
     """Bump last-activity so the sidebar shows when it was last replied to."""
     conv.updated_at = datetime.utcnow()
 
+
+def _system_prompt_for_request(data: dict, conversation: Conversation) -> str:
+    """Use a browser-created persona for this reply, when supplied safely."""
+    custom_prompt = data.get("system_prompt")
+    if isinstance(custom_prompt, str) and custom_prompt.strip():
+        # Bound the input so a persona cannot turn a request into an oversized
+        # prompt. Custom personas themselves remain in browser storage.
+        return custom_prompt.strip()[:4000]
+    return get_persona(conversation.persona).system_prompt
+
 # normal chain implementation
 @msg_bp.route("/<conv_id>/message", methods=["POST"])
 @jwt_required()
@@ -60,8 +70,10 @@ def send_message(conv_id):
     strategy.update(conv_id, user_text, source_message_id=user_msg.id)
     history = strategy.get_history(conv_id)
     memory_context = strategy.get_memory_text(conv_id)
-    persona = get_persona(conv.persona)
-    reply_text = run_conversation(user_text, history, memory_context, system_prompt=persona.system_prompt)
+    reply_text = run_conversation(
+        user_text, history, memory_context,
+        system_prompt=_system_prompt_for_request(data, conv),
+    )
 
     ai_msg = Message(
         conversation_id=conv_id,
@@ -114,7 +126,7 @@ def send_message_stream(conv_id):
     strategy = get_memory_strategy(conv.memory_type)
     history = strategy.get_history(conv_id)
     memory_context = strategy.get_memory_text(conv_id)
-    persona = get_persona(conv.persona)
+    system_prompt = _system_prompt_for_request(data, conv)
 
     def event(name: str, payload) -> str:
         return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
@@ -127,14 +139,16 @@ def send_message_stream(conv_id):
         yield event("user_message", user_msg.to_dict())
         yield event("conversation", conv_snapshot)
 
-        # Pipeline: reply streams while entity/kg/summary extraction runs
-        # concurrently (per the conversation's memory type).
+        # Finish the model work and commit the answer before exposing any reply
+        # text to the browser. Previously, the browser could render tokens and
+        # then a page refresh would close the SSE connection before the final
+        # database write, making that visible answer disappear on reload.
         stream = stream_parallel(
             conv_id,
             user_text,
             history,
             memory_context,
-            system_prompt=persona.system_prompt,
+            system_prompt=system_prompt,
             memory_type=conv.memory_type,
             source_message_id=user_msg.id,
         )
@@ -145,7 +159,6 @@ def send_message_stream(conv_id):
             while True:
                 chunk = loop.run_until_complete(stream.__anext__())
                 parts.append(chunk)
-                yield event("token", {"delta": chunk})
         except StopAsyncIteration:
             pass
         except Exception as exc:
@@ -166,6 +179,11 @@ def send_message_stream(conv_id):
         bound_conv = db.session.merge(conv)  # re-attach so updated_at persists
         _touch(bound_conv)
         db.session.commit()
+
+        # The frontend still receives chunks for its typing animation, but all
+        # of them now belong to a reply that is safely stored in the database.
+        for chunk in parts:
+            yield event("token", {"delta": chunk})
         yield event("done", ai_msg.to_dict())
 
     resp = Response(stream_with_context(generate()), mimetype="text/event-stream")
