@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.py[cod]
+.env
+*.env
+instance/
+*.sqlite3
+*.db
+*.log
+gunicorn_out.log
+gunicorn_err.log
+check_entities.py
+dedupe_all.py
+_check_get.py
+_tmp_check.py
+_tmp_cors.py

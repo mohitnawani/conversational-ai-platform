@@ -12,12 +12,8 @@ extraction_prompt = ChatPromptTemplate.from_template(
     "Message: {message}"
 )
 
-def extract_entities(message_text: str) -> list[dict]:
-    chain = extraction_prompt | model
-    result = chain.invoke({"message": message_text})
-    # Gemini can return content as a list of blocks instead of a plain string.
-    # Convert it before parsing so SQLAlchemy never receives the raw list.
-    raw = extract_text(result.content).strip()
+def _parse_extraction(raw) -> list[dict]:
+    raw = extract_text(raw).strip()
 
     if raw.startswith("```"):
         raw = raw.strip("`")
@@ -30,13 +26,27 @@ def extract_entities(message_text: str) -> list[dict]:
         return []
 
 
+def extract_entities(message_text: str) -> list[dict]:
+    chain = extraction_prompt | model
+    result = chain.invoke({"message": message_text})
+    # Gemini can return content as a list of blocks instead of a plain string.
+    # Convert it before parsing so SQLAlchemy never receives the raw list.
+    return _parse_extraction(result.content)
+
+
+async def aextract_entities(message_text: str) -> list[dict]:
+    """Async entity extraction — no DB access, safe to run concurrently."""
+    chain = extraction_prompt | model
+    result = await chain.ainvoke({"message": message_text})
+    return _parse_extraction(result.content)
+
+
 def _normalize_name(name: str) -> str:
     return " ".join(name.split()).lower()
 
 
-def update_entities(conversation_id: str, message_text: str):
-    extracted = extract_entities(message_text)
-
+def save_entities(conversation_id: str, extracted: list[dict]):
+    """Persist already-extracted entities, merging into existing rows."""
     seen = set()
     for item in extracted:
         name = item.get("name", "").strip()
@@ -65,6 +75,10 @@ def update_entities(conversation_id: str, message_text: str):
             ))
 
     db.session.commit()
+
+
+def update_entities(conversation_id: str, message_text: str):
+    save_entities(conversation_id, extract_entities(message_text))
 
 
 def dedupe_entities(conversation_id: str) -> int:

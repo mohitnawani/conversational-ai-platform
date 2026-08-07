@@ -29,6 +29,24 @@ def run_conversation(user_input: str, history: list[dict], memory_context: str =
     return extract_text(response.content)
 
 
+def stream_conversation(user_input: str, history: list[dict], memory_context: str = "", system_prompt: str = DEFAULT_SYSTEM_PROMPT):
+    """Same chain as run_conversation, but yields text chunks as the model streams.
+
+    Yields only non-empty text fragments; concatenating them in order gives the
+    full assistant reply (used by the SSE message/stream endpoint).
+    """
+    chain = build_simple_chain(system_prompt)
+    lc_history = [(m["role"] if m["role"] != "assistant" else "ai", m["content"]) for m in history]
+    for chunk in chain.stream({
+        "input": user_input,
+        "history": lc_history,
+        "memory_context": memory_context,
+    }):
+        text = extract_text(chunk.content)
+        if text:
+            yield text
+
+
 # sequential chain implementation
 
 classify_prompt = ChatPromptTemplate.from_template(
@@ -68,36 +86,124 @@ def run_sequential_chain(conversation_id: str, user_input: str, history: list[di
     return reply, intent
 
 
-# //parallel chain implementation
+# parallel chain implementation
 
-async def _generate_reply_async(user_input, history, memory_context, system_prompt):
-    return run_conversation(user_input, history, memory_context, system_prompt=system_prompt)
-
-async def _extract_entities_async(conversation_id, user_input):
-    entity_memory.update_entities(conversation_id, user_input)
-    return entity_memory.get_entity_context(conversation_id)
-
-async def _update_graph_async(conversation_id, user_input):
-    kg_memory.update_graph(conversation_id, user_input)
-    return kg_memory.get_graph_context(conversation_id)
-
-
-async def _run_parallel_async(conversation_id, user_input, history, memory_context="", system_prompt=DEFAULT_SYSTEM_PROMPT):
-    reply, entity_ctx, kg_ctx = await asyncio.gather(
-        _generate_reply_async(user_input, history, memory_context, system_prompt),
-        _extract_entities_async(conversation_id, user_input),
-        _update_graph_async(conversation_id, user_input),
-    )
-    return {
-        "reply": reply,
-        "entity_context": entity_ctx,
-        "kg_context": kg_ctx,
-    }
+def parallel_writers(memory_type: str) -> list:
+    """Which memory stores receive an extraction write for this memory type."""
+    if memory_type == "hybrid":
+        return ["entity", "kg", "summary"]
+    if memory_type == "entity":
+        return ["entity"]
+    if memory_type == "kg":
+        return ["kg"]
+    if memory_type == "summary":
+        return ["summary"]
+    return []
 
 
-def run_parallel_chain(conversation_id: str, user_input: str, history: list[dict], memory_context: str = "", system_prompt: str = DEFAULT_SYSTEM_PROMPT):
+def _lc_history(history: list[dict]) -> list[tuple]:
+    return [(m["role"] if m["role"] != "assistant" else "ai", m["content"]) for m in history]
+
+
+async def stream_parallel(
+    conversation_id: str,
+    user_input: str,
+    history: list[dict],
+    memory_context: str = "",
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    memory_type: str = "buffer",
+    source_message_id: str = None,
+):
+    """Stream the reply while memory writers run concurrently.
+
+    Yields reply text chunks as the model streams. Entity / KG / summary
+    extraction (LLM calls only) are started as asyncio tasks alongside the
+    reply; their DB writes are applied sequentially once the stream finishes,
+    so the shared SQLAlchemy session stays single-threaded.
+    """
+    writers = parallel_writers(memory_type)
+
+    tasks = []
+    if "entity" in writers:
+        tasks.append(asyncio.create_task(entity_memory.aextract_entities(user_input)))
+    if "kg" in writers:
+        tasks.append(asyncio.create_task(kg_memory.aextract_triples(user_input)))
+    if "summary" in writers:
+        tasks.append(asyncio.create_task(summary_memory.asummarize(conversation_id)))
+
+    chain = build_simple_chain(system_prompt)
+    try:
+        async for chunk in chain.astream({
+            "input": user_input,
+            "history": _lc_history(history),
+            "memory_context": memory_context,
+        }):
+            text = extract_text(chunk.content)
+            if text:
+                yield text
+    finally:
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result, kind in zip(results, writers):
+                if isinstance(result, BaseException):
+                    continue
+                if kind == "entity":
+                    entity_memory.save_entities(conversation_id, result)
+                elif kind == "kg":
+                    kg_memory.save_triples(conversation_id, result, source_message_id)
+                elif kind == "summary" and result:
+                    summary_memory.save_summary(
+                        conversation_id,
+                        result["text"],
+                        result["messages_covered_until"],
+                    )
+
+
+async def run_parallel_pipeline(
+    conversation_id: str,
+    user_input: str,
+    history: list[dict],
+    memory_context: str = "",
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    memory_type: str = "buffer",
+    source_message_id: str = None,
+) -> str:
+    """Non-streaming variant — return the full reply after the parallel writes land."""
+    return "".join([
+        chunk
+        async for chunk in stream_parallel(
+            conversation_id,
+            user_input,
+            history,
+            memory_context,
+            system_prompt,
+            memory_type,
+            source_message_id,
+        )
+    ])
+
+
+def run_parallel_chain(
+    conversation_id: str,
+    user_input: str,
+    history: list[dict],
+    memory_context: str = "",
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    memory_type: str = "buffer",
+    source_message_id: str = None,
+):
     """Sync wrapper — call this from a normal Flask route."""
-    return asyncio.run(_run_parallel_async(conversation_id, user_input, history, memory_context, system_prompt))
+    return asyncio.run(
+        run_parallel_pipeline(
+            conversation_id,
+            user_input,
+            history,
+            memory_context,
+            system_prompt,
+            memory_type,
+            source_message_id,
+        )
+    )
 
 # branching chain implementation
 

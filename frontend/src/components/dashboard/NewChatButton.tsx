@@ -11,12 +11,15 @@ export function NewChatButton({ onNewChat, disabled }: NewChatButtonProps) {
       type="button"
       onClick={onNewChat}
       disabled={disabled}
-      className="btn btn-ghost w-full justify-start gap-2 border border-dashed border-base-300 px-3 text-body font-medium text-base-content shadow-none transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+      className="flex w-full items-center justify-center gap-2 rounded-lg border border-ink-700 bg-ink-800 py-2.5 text-sm font-medium text-paper-100 transition-colors duration-[120ms] hover:border-amber-index/50 hover:text-amber-index disabled:cursor-not-allowed disabled:opacity-50"
     >
       {disabled ? (
-        <span className="loading loading-spinner loading-xs" />
+        <span
+          aria-hidden
+          className="h-4 w-4 animate-spin rounded-full border-2 border-ink-700 border-t-amber-index"
+        />
       ) : (
-        <Plus className="h-4 w-4" />
+        <Plus size={15} className="text-amber-index" />
       )}
       New chat
     </button>

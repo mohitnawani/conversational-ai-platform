@@ -13,3 +13,8 @@ class Config:
     JWT_COOKIE_SAMESITE = "Lax"
     JWT_ACCESS_TOKEN_EXPIRES = 60 * 60 * 24 * 7
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    CORS_ORIGINS = [
+        o.strip()
+        for o in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+        if o.strip()
+    ]
