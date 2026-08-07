@@ -1,121 +1,83 @@
-import { useEffect, useState } from 'react'
-import { BrainCircuit, PanelLeftClose, PanelLeftOpen, Plus, Sparkles } from 'lucide-react'
-import { useAppDispatch, useAppSelector } from '@/store'
-import { logout } from '@/store/authSlice'
-import { ConversationSidebar } from '@/components/dashboard/ConversationSidebar'
+import { useEffect } from 'react'
+import { ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router'
-import { selectConversation } from '@/store/conversationsSlice'
+import { useAppDispatch, useAppSelector } from '@/store'
+import { createConversation, fetchPersonas } from '@/store/conversationsSlice'
+import { MainLayout } from '@/components/layout/MainLayout'
+import type { Conversation } from '@/types/conversation'
 
-const COLLAPSE_KEY = 'mnemo:sidebar-collapsed'
+const QUICK_STARTS = [
+  { label: 'Ask a research question', icon: '▥' },
+  { label: 'Tutor me step by step', icon: '✎' },
+  { label: 'Review my reasoning', icon: '⌁' },
+]
 
+/**
+ * Dashboard — the "What's next" landing inside the app shell. Same sidebar,
+ * quiet hero, one amber wash, no futuristic orbs.
+ */
 export function DashboardPage() {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const user = useAppSelector((s) => s.auth.user)
-  const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem(COLLAPSE_KEY) === '1',
-  )
+  const { personas, personasStatus } = useAppSelector((s) => s.conversations)
 
   useEffect(() => {
-    localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0')
-  }, [collapsed])
+    if (personasStatus === 'idle') {
+      dispatch(fetchPersonas())
+    }
+  }, [personasStatus, dispatch])
 
-  function toggleCollapse() {
-    setCollapsed((v) => !v)
-  }
+  const modeName = personas[0]?.name.toUpperCase() ?? 'GENERAL'
 
-  function handleNewChat() {
-    dispatch(selectConversation(null))
-    navigate('/dashboard')
+  async function startConversation(persona?: string) {
+    const res = await dispatch(createConversation({ persona: persona ?? personas[0]?.id }))
+    if (res.meta.requestStatus === 'fulfilled') {
+      navigate(`/chat/${(res.payload as Conversation).id}`)
+    }
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-base-200">
-      <header className="navbar sticky top-0 z-20 border-b border-base-300 bg-base-100/90 backdrop-blur">
-        <div className="mx-auto w-full max-w-6xl px-4">
-          <div className="flex w-full items-center gap-3">
-            <button
-              className="btn btn-ghost btn-sm btn-square hidden text-base-content/60 hover:text-base-content lg:inline-flex"
-              onClick={toggleCollapse}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              aria-pressed={collapsed}
-            >
-              {collapsed ? (
-                <PanelLeftOpen className="h-4 w-4" />
-              ) : (
-                <PanelLeftClose className="h-4 w-4" />
-              )}
-            </button>
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-content shadow-sm shadow-primary/30">
-              <BrainCircuit className="h-4 w-4" />
-            </span>
-            <h1 className="font-display text-lg font-semibold tracking-tight text-base-content">
-              Mnemo
-            </h1>
-            <div className="ml-auto flex items-center gap-4">
-              <div className="hidden text-right sm:block">
-                <p className="text-sm font-medium leading-tight text-base-content">
-                  {user?.name}
-                </p>
-                <p className="font-mono text-xs leading-tight text-base-content/50">
-                  {user?.email}
-                </p>
-              </div>
+    <MainLayout title="Mnemo">
+      <main className="relative min-h-0 flex-1 overflow-y-auto">
+        <div aria-hidden className="amber-wash pointer-events-none absolute inset-0" />
+        <div className="relative flex min-h-full flex-col items-center justify-center px-6 py-16 text-center">
+          <p className="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-amber-index">
+            Your workspace
+          </p>
+          <h1 className="mt-4 font-display text-[32px] font-medium leading-[1.15] tracking-tight text-paper-100">
+            What's next, {user?.name?.split(' ')[0] ?? 'friend'}?
+          </h1>
+          <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.22em] text-amber-index">
+            mode: {modeName}
+          </p>
+          <p className="mt-4 max-w-sm text-sm text-paper-500">
+            Open a conversation to keep going, or start a new one — every reply
+            stays bound to the sources it came from.
+          </p>
+
+          <div className="mt-7 flex max-w-lg flex-col items-stretch gap-2">
+            {QUICK_STARTS.map((qs) => (
               <button
-                className="btn btn-outline btn-sm"
-                onClick={() => dispatch(logout())}
+                key={qs.label}
+                type="button"
+                onClick={() => startConversation(personas[0]?.id)}
+                className="group flex w-full items-center gap-3 rounded-lg border border-ink-700 bg-ink-800 px-4 py-2.5 text-left text-sm text-paper-100 transition-colors duration-[120ms] hover:border-amber-index"
               >
-                Log out
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-amber-tint font-mono text-[13px] text-amber-index">
+                  {qs.icon}
+                </span>
+                <span className="flex-1">{qs.label}</span>
+                <ArrowRight className="h-4 w-4 text-paper-500 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-amber-index" />
               </button>
-            </div>
+            ))}
           </div>
+
+          <p className="mt-8 font-mono text-[0.65rem] tracking-[0.18em] text-paper-500">
+            INDEX: BUILDING · EVERY ANSWER, TRACEABLE
+          </p>
         </div>
-      </header>
-
-      <div
-        className={`mx-auto grid w-full max-w-6xl flex-1 gap-5 px-4 py-6 transition-[grid-template-columns] duration-300 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] ${
-          collapsed
-            ? 'lg:!grid-cols-[4.75rem_minmax(0,1fr)]'
-            : 'lg:!grid-cols-[18rem_minmax(0,1fr)]'
-        }`}
-      >
-        <aside className="card h-fit bg-base-100 ring-1 ring-base-300 lg:sticky lg:top-20 lg:h-[calc(100svh-6.5rem)]">
-          <div
-            className={`card-body h-full gap-3 ${
-              collapsed ? 'items-center p-3' : 'p-4'
-            }`}
-          >
-            {collapsed ? (
-              <button
-                className="btn btn-ghost btn-sm btn-square text-base-content/70 hover:text-primary"
-                onClick={handleNewChat}
-                aria-label="New chat"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            ) : (
-              <ConversationSidebar />
-            )}
-          </div>
-        </aside>
-
-        <main className="card bg-base-100 ring-1 ring-base-300">
-          <div className="card-body p-6 sm:p-8">
-            <div className="flex h-full flex-col items-center justify-center gap-3 py-16 text-center">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <Sparkles className="h-6 w-6" />
-              </span>
-              <h2 className="font-display text-heading font-semibold text-base-content">
-                Welcome, {user?.name?.split(' ')[0]}
-              </h2>
-              <p className="max-w-sm text-body text-base-content/60">
-                Open a conversation to keep going, or start a new one — Mnemo
-                remembers every thread.
-              </p>
-            </div>
-          </div>
-        </main>
-      </div>
-    </div>
+      </main>
+    </MainLayout>
   )
 }

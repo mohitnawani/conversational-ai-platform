@@ -16,6 +16,22 @@ class Persona:
         }
 
 
+def effective_memory_type(user_id: str, persona_id: str) -> str:
+    """Persona memory type to use for `user_id`'s conversations.
+
+    A per-user override (PersonaMemory row) wins; otherwise the persona's
+    built-in default applies.
+    """
+    from models.database import PersonaMemory
+
+    override = PersonaMemory.query.filter_by(
+        user_id=user_id, persona_id=persona_id
+    ).first()
+    if override:
+        return override.memory_type
+    return get_persona(persona_id).default_memory_type
+
+
 PERSONAS = {
     "mentor": Persona(
         id="mentor",

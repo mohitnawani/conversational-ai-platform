@@ -5,15 +5,21 @@ import { ArrowRight } from 'lucide-react'
 import { loginSchema, type LoginFormValues } from '@/lib/validators'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { login } from '@/store/authSlice'
-import { AuthShell } from '@/components/auth/AuthShell'
+import { AuthShell, AuthStage } from '@/components/auth/AuthShell'
 import {
   ErrorAlert,
   Field,
-  FormCard,
   PasswordInput,
   SubmitButton,
 } from '@/components/auth/Form'
 import { inputClass } from '@/components/auth/inputStyles'
+
+const CITATION_CHIPS = [
+  { label: 'research_paper.pdf · p.12', ref: '1', left: '4%', delay: 0, duration: 12 },
+  { label: 'quarterly_report.pdf · p.4', ref: '2', left: '34%', delay: 3.5, duration: 13 },
+  { label: 'lecture_notes.pdf · p.2', ref: '3', left: '62%', delay: 6.5, duration: 11 },
+  { label: 'transcript.mp4 · 00:14:32', ref: '4', left: '18%', delay: 8.5, duration: 14 },
+]
 
 export function LoginPage() {
   const dispatch = useAppDispatch()
@@ -34,22 +40,36 @@ export function LoginPage() {
   }
 
   return (
-    <AuthShell>
-      <FormCard>
-        <header className="space-y-2">
-          <p className="font-mono text-eyebrow uppercase text-primary">
-            <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />
-            Welcome back
+    <AuthShell
+      stage={
+        <AuthStage
+          kicker="The index thread"
+          headline={
+            <>
+              Every answer,{' '}
+              <em className="font-normal not-italic text-amber-index">traceable.</em>
+            </>
+          }
+          tagline="Each reply is bound to the passage it came from — pull the card, see the source."
+          chips={CITATION_CHIPS}
+          foot="INDEX: 04 SOURCES · ALL ROOTED"
+        />
+      }
+    >
+      <div className="stagger">
+        <header>
+          <p className="font-mono text-[0.7rem] uppercase tracking-[0.2em] text-amber-index">
+            Sign in
           </p>
-          <h1 className="font-display text-heading font-semibold text-base-content">
-            Sign in to your memory
+          <h1 className="mt-3 font-display text-[32px] font-medium leading-[1.15] tracking-tight text-paper-100">
+            Pick up where you left off.
           </h1>
-          <p className="text-body text-base-content/60">
-            Every person, fact, and thread you saved is waiting.
+          <p className="mt-2 text-sm leading-relaxed text-paper-500">
+            Your threads, your citations — still bound to their sources.
           </p>
         </header>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
           <Field id="email" label="Email" error={errors.email?.message}>
             <input
               id="email"
@@ -79,18 +99,17 @@ export function LoginPage() {
           <SubmitButton loading={loading} label="Sign in" loadingLabel="Signing in…" />
         </form>
 
-        <p className="mt-7 text-center text-body text-base-content/60">
-          New to Mnemo?{' '}
+        <p className="mt-7 text-center text-sm text-paper-500">
+          No account?{' '}
           <Link
             to="/register"
-            className="group inline-flex items-center gap-1 font-medium text-primary underline decoration-primary/40 underline-offset-4 transition-colors hover:text-primary/80 hover:decoration-primary/70"
+            className="group inline-flex items-center gap-1 font-medium text-amber-index transition-colors duration-150 hover:text-amber-index-deep"
           >
-            Create your workspace
-            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+            Sign up
+            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
           </Link>
         </p>
-      </FormCard>
+      </div>
     </AuthShell>
   )
 }
-

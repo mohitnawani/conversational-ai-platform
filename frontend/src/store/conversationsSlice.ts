@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import axiosClient from '@/lib/axios'
 import type { Conversation, Persona } from '@/types/conversation'
 import { logout } from '@/store/authSlice'
@@ -12,6 +12,9 @@ interface ConversationsState {
   error: string | null
   personas: Persona[]
   personasStatus: 'idle' | 'loading' | 'succeeded' | 'failed'
+  /** persona_id -> per-user memory-type override (undefined = persona default) */
+  personaMemory: Record<string, string>
+  personaMemoryStatus: 'idle' | 'loading' | 'succeeded' | 'failed'
 }
 
 export const fetchConversations = createAsyncThunk(
@@ -59,6 +62,55 @@ export const deleteConversation = createAsyncThunk(
   },
 )
 
+export const updatePersona = createAsyncThunk(
+  'conversations/updatePersona',
+  async ({ id, persona }: { id: string; persona: string }) => {
+    const { data } = await axiosClient.put<Conversation>(`/conversations/${id}`, {
+      persona,
+    })
+    return data
+  },
+)
+
+export const updateMemoryType = createAsyncThunk(
+  'conversations/updateMemoryType',
+  async ({ id, memory_type }: { id: string; memory_type: string }) => {
+    const { data } = await axiosClient.put<Conversation>(`/conversations/${id}`, {
+      memory_type,
+    })
+    return data
+  },
+)
+
+export const fetchMemoryOverrides = createAsyncThunk(
+  'conversations/fetchMemoryOverrides',
+  async () => {
+    const { data } = await axiosClient.get<Record<string, string>>(
+      '/conversations/personas/memory',
+    )
+    return data
+  },
+)
+
+export const setPersonaMemory = createAsyncThunk(
+  'conversations/setPersonaMemory',
+  async ({ persona, memory_type }: { persona: string; memory_type: string }) => {
+    const { data } = await axiosClient.put<Record<string, string>>(
+      `/conversations/personas/${persona}/memory`,
+      { memory_type },
+    )
+    return data
+  },
+)
+
+export const resetPersonaMemory = createAsyncThunk(
+  'conversations/resetPersonaMemory',
+  async (persona: string) => {
+    await axiosClient.delete(`/conversations/personas/${persona}/memory`)
+    return persona
+  },
+)
+
 const initialState: ConversationsState = {
   conversations: [],
   selectedId: null,
@@ -67,6 +119,8 @@ const initialState: ConversationsState = {
   error: null,
   personas: [],
   personasStatus: 'idle',
+  personaMemory: {},
+  personaMemoryStatus: 'idle',
 }
 
 function resetConversationsState(state: ConversationsState) {
@@ -77,6 +131,8 @@ function resetConversationsState(state: ConversationsState) {
   state.error = null
   state.personas = []
   state.personasStatus = 'idle'
+  state.personaMemory = {}
+  state.personaMemoryStatus = 'idle'
 }
 
 function upsertConversation(
@@ -97,6 +153,14 @@ const conversationsSlice = createSlice({
   reducers: {
     selectConversation(state, action: { payload: string | null }) {
       state.selectedId = action.payload
+    },
+    /** Merge a single conversation (e.g. auto-titled by a stream) and move it to the top. */
+    syncConversation(state, action: PayloadAction<Conversation>) {
+      const conv = action.payload
+      state.conversations = [
+        conv,
+        ...state.conversations.filter((c) => c.id !== conv.id),
+      ]
     },
   },
   extraReducers: (builder) => {
@@ -145,6 +209,41 @@ const conversationsSlice = createSlice({
       .addCase(renameConversation.rejected, (state, action) => {
         state.error = (action.error.message as string) || 'Failed to rename conversation'
       })
+      .addCase(updatePersona.fulfilled, (state, action) => {
+        upsertConversation(state, action.payload)
+      })
+      .addCase(updatePersona.rejected, (state, action) => {
+        state.error = (action.error.message as string) || 'Failed to switch persona'
+      })
+      .addCase(updateMemoryType.fulfilled, (state, action) => {
+        upsertConversation(state, action.payload)
+      })
+      .addCase(updateMemoryType.rejected, (state, action) => {
+        state.error = (action.error.message as string) || 'Failed to change memory'
+      })
+      .addCase(fetchMemoryOverrides.pending, (state) => {
+        state.personaMemoryStatus = 'loading'
+      })
+      .addCase(fetchMemoryOverrides.fulfilled, (state, action) => {
+        state.personaMemoryStatus = 'succeeded'
+        state.personaMemory = action.payload
+      })
+      .addCase(fetchMemoryOverrides.rejected, (state) => {
+        state.personaMemoryStatus = 'failed'
+      })
+      .addCase(setPersonaMemory.fulfilled, (state, action) => {
+        state.personaMemory = { ...state.personaMemory, ...action.payload }
+      })
+      .addCase(setPersonaMemory.rejected, (state, action) => {
+        state.error = (action.error.message as string) || 'Failed to change memory'
+      })
+      .addCase(resetPersonaMemory.fulfilled, (state, action) => {
+        const { [action.payload]: _removed, ...rest } = state.personaMemory
+        state.personaMemory = rest
+      })
+      .addCase(resetPersonaMemory.rejected, (state, action) => {
+        state.error = (action.error.message as string) || 'Failed to reset memory'
+      })
       .addCase(deleteConversation.fulfilled, (state, action) => {
         state.conversations = state.conversations.filter(
           (c) => c.id !== action.payload,
@@ -164,6 +263,6 @@ const conversationsSlice = createSlice({
   },
 })
 
-export const { selectConversation } = conversationsSlice.actions
+export const { selectConversation, syncConversation } = conversationsSlice.actions
 
 export default conversationsSlice.reducer

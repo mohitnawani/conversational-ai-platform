@@ -7,7 +7,6 @@ export const loginSchema = z.object({
 
 export const registerSchema = z
   .object({
-    name: z.string().trim().min(1, 'Name is required').max(255, 'Name is too long'),
     email: z.string().trim().email('Enter a valid email address'),
     password: z
       .string()

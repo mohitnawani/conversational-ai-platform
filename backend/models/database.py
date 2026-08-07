@@ -29,7 +29,7 @@ class User(db.Model):
 class Conversation(db.Model):
     __tablename__ = "conversations"
     id = db.Column(db.String, primary_key=True, default=gen_uuid)
-    user_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=True)
+    user_id = db.Column(db.String, db.ForeignKey("users.id"), nullable=False)
     title = db.Column(db.String(255), default="New Conversation")
     memory_type = db.Column(db.String(20), default="buffer")  # buffer | summary | entity | kg | hybrid
     persona = db.Column(db.String(50), default="mentor")
@@ -99,3 +99,31 @@ class KGTriple(db.Model):
     object = db.Column(db.String(255), nullable=False)
     source_message_id = db.Column(db.String, db.ForeignKey("messages.id"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PersonaMemory(db.Model):
+    """Per-user memory-type override for a persona.
+
+    When present, this memory type wins over the persona's default for every
+    conversation that uses that persona. Deleting the row restores the default.
+    """
+
+    __tablename__ = "persona_memory"
+    user_id = db.Column(db.String, db.ForeignKey("users.id"), primary_key=True)
+    persona_id = db.Column(db.String(50), primary_key=True)
+    memory_type = db.Column(db.String(20), nullable=False)  # buffer | summary | entity | kg | hybrid
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MemoryBackfill(db.Model):
+    """Remembers which extraction strategy already rebuilt a conversation's
+    full history, so a memory-type switch backfills exactly once.
+    """
+
+    __tablename__ = "memory_backfills"
+    conversation_id = db.Column(
+        db.String, db.ForeignKey("conversations.id"), primary_key=True
+    )
+    entity_done = db.Column(db.Boolean, default=False)
+    kg_done = db.Column(db.Boolean, default=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

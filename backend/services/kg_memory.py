@@ -21,8 +21,19 @@ kg_extraction_prompt = ChatPromptTemplate.from_template(
 def extract_triples(message_text: str) -> list[dict]:
     chain = kg_extraction_prompt | model
     result = chain.invoke({"message": message_text})
+    return _parse_triples(result.content)
+
+
+async def aextract_triples(message_text: str) -> list[dict]:
+    """Async triple extraction — no DB access, safe to run concurrently."""
+    chain = kg_extraction_prompt | model
+    result = await chain.ainvoke({"message": message_text})
+    return _parse_triples(result.content)
+
+
+def _parse_triples(raw) -> list[dict]:
     # Gemini can return content as a list of blocks instead of a plain string.
-    raw = extract_text(result.content).strip()
+    raw = extract_text(raw).strip()
 
     if raw.startswith("```"):
         raw = raw.strip("`")
@@ -53,10 +64,9 @@ def _triple_key(subject: str, predicate: str, obj: str) -> tuple:
     )
 
 
-def update_graph(conversation_id: str, message_text: str, source_message_id: str = None):
-    extracted = extract_triples(message_text)
-
-    for item in extracted:
+def save_triples(conversation_id: str, triples: list[dict], source_message_id: str = None):
+    """Persist already-extracted triples, skipping exact duplicates."""
+    for item in triples:
         subj = item.get("subject", "").strip()
         pred = item.get("predicate", "").strip()
         obj = item.get("object", "").strip()
@@ -81,6 +91,10 @@ def update_graph(conversation_id: str, message_text: str, source_message_id: str
         ))
 
     db.session.commit()
+
+
+def update_graph(conversation_id: str, message_text: str, source_message_id: str = None):
+    save_triples(conversation_id, extract_triples(message_text), source_message_id)
 
 
 def dedupe_triples(conversation_id: str) -> int:

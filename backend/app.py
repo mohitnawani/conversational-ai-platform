@@ -13,7 +13,7 @@ def create_app():
     app.config.from_object(Config)
 
     db.init_app(app)
-    CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
+    CORS(app, supports_credentials=True, origins=Config.CORS_ORIGINS)
     jwt = JWTManager(app)
 
     @jwt.token_in_blocklist_loader
