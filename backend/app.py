@@ -52,15 +52,11 @@ def create_app():
             if path and os.path.isfile(target):
                 return send_from_directory(FRONTEND_DIST, path)
             return send_from_directory(FRONTEND_DIST, "index.html")
-<<<<<<< HEAD
-        return {"status": "ok", "service": "conversational-ai-platform"}
-=======
         return {
             "service": "conversational-ai-platform",
             "status": "degraded",
             "frontend": "not built — run `npm run build` in frontend/",
         }
->>>>>>> main
 
     return app
 
