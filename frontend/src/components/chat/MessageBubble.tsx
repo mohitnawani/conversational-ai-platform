@@ -87,7 +87,8 @@ export function StreamingUnderline({ visible = true }: { visible?: boolean }) {
 
 function formatTime(iso?: string) {
   if (!iso) return null
-  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const utc = iso.endsWith('Z') || /[+-]\d\d:\d\d$/.test(iso) ? iso : iso + 'Z'
+  return new Date(utc).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
 export interface MessageBubbleProps {
