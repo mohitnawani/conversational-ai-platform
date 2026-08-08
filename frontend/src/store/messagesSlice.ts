@@ -7,7 +7,7 @@ import axiosClient from '@/lib/axios'
 import type { Conversation, Message } from '@/types/conversation'
 import { logout } from '@/store/authSlice'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 interface MessagesState {
   byId: Record<string, Message[]>

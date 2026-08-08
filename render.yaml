@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: conversational-ai-platform
+    runtime: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt && cd frontend && npm install && npm run build
+    startCommand: cd backend && gunicorn -c gunicorn.conf.py "app:create_app()"
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: JWT_COOKIE_SECURE
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: GUNICORN_THREADS
+        sync: false
+      - key: GUNICORN_TIMEOUT
+        sync: false

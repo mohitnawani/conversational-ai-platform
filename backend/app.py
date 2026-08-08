@@ -1,4 +1,5 @@
-from flask import Flask, jsonify
+import os
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config import Config
@@ -7,6 +8,11 @@ from routes.messages import msg_bp
 from routes.conversations import conv_bp
 from routes.auth import auth_bp
 from services import token_blocklist
+
+# Built React app served by this backend (rendered in production)
+FRONTEND_DIST = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "dist")
+)
 
 def create_app():
     app = Flask(__name__)
@@ -32,13 +38,20 @@ def create_app():
     with app.app_context():
         db.create_all()
 
-    @app.route("/")
-    def home():
-        return {"status": "ok", "service": "conversational-ai-platform"}
-
     @app.route("/api/health")
     def health():
         return {"status": "ok"}
+
+    # Serve the built frontend (single origin, like the Elixir RAG chatbot deploy)
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_frontend(path):
+        if os.path.isdir(FRONTEND_DIST):
+            target = os.path.join(FRONTEND_DIST, path or "index.html")
+            if path and os.path.isfile(target):
+                return send_from_directory(FRONTEND_DIST, path)
+            return send_from_directory(FRONTEND_DIST, "index.html")
+        return {"status": "ok", "service": "conversational-ai-platform"}
 
     return app
 
