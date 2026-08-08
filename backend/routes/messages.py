@@ -42,6 +42,10 @@ def _friendly_llm_error(exc: Exception) -> str:
     lowered = raw.lower()
     if "429" in raw or "resource_exhausted" in lowered or "rate" in lowered or "quota" in lowered:
         return "The AI service is busy right now. Please wait a moment and try again."
+    if ("token limit" in lowered or "maximum context" in lowered or "too many tokens" in lowered
+            or "too long" in lowered or "exceeds the" in lowered
+            or "exceeds the limit" in lowered):
+        return "This message is too long for the AI model. Please shorten it and try again."
     if "404" in raw or "no longer available" in lowered or "not found" in lowered and "model" in lowered:
         return "The AI model is unavailable right now. Please try again later."
     if "401" in raw or "403" in raw or "api key" in lowered or "authentication" in lowered:

@@ -4,6 +4,7 @@ import {
   type PayloadAction,
 } from '@reduxjs/toolkit'
 import axiosClient from '@/lib/axios'
+import { friendlyError } from '@/lib/errors'
 import type { Conversation, Message } from '@/types/conversation'
 import { logout } from '@/store/authSlice'
 
@@ -153,8 +154,9 @@ export const streamMessage = createAsyncThunk<StreamResult, SendOptions>(
       }
       if (!resolved) throw new Error('Stream ended before a reply arrived')
     } catch (error) {
-      dispatch(streamFail((error as Error).message || 'Stream failed'))
-      return rejectWithValue((error as Error).message || 'Stream failed')
+      const message = friendlyError((error as Error).message || 'Stream failed')
+      dispatch(streamFail(message))
+      return rejectWithValue(message)
     }
 
     return { conversationId, fallback: false }
@@ -265,8 +267,7 @@ const messagesSlice = createSlice({
       })
       .addCase(fetchMessages.rejected, (state, action) => {
         state.status = 'failed'
-        state.error =
-          (action.error.message as string) || 'Failed to load this conversation'
+        state.error = friendlyError(action.error.message, 'Failed to load this conversation')
       })
       .addCase(sendMessage.pending, (state) => {
         state.sending = true
@@ -284,7 +285,7 @@ const messagesSlice = createSlice({
       .addCase(sendMessage.rejected, (state, action) => {
         state.sending = false
         state.streaming = null
-        state.error = (action.error.message as string) || 'Message failed to send'
+        state.error = friendlyError(action.error.message, 'Message failed to send')
       })
       .addCase(streamMessage.rejected, (state) => {
         state.streamingContent += state.streamBuffer
