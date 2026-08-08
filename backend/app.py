@@ -56,6 +56,8 @@ def create_app():
             "service": "conversational-ai-platform",
             "status": "degraded",
             "frontend": "not built — run `npm run build` in frontend/",
+            "frontend_dist": FRONTEND_DIST,
+            "exists": os.path.isdir(FRONTEND_DIST),
         }
 
     return app
