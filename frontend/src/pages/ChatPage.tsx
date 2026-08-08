@@ -303,6 +303,7 @@ export function ChatPage() {
                   content={m.content}
                   citations={sourcesFor(m)}
                   timestamp={m.created_at}
+                  label={m.role === 'assistant' ? personaName : undefined}
                   onOpenSource={(idx) => {
                     const srcs = sourcesFor(m)
                     if (srcs) openSources(srcs, idx)
@@ -315,6 +316,7 @@ export function ChatPage() {
                   content={streaming === conversationId ? streamingContent : ''}
                   isStreaming
                   citations={null}
+                  label={personaName}
                 />
               )}
             </>

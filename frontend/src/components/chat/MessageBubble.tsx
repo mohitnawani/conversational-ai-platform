@@ -1,4 +1,5 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
+import { Check, Copy, Sparkles } from 'lucide-react'
 import type { Source } from '@/types/conversation'
 
 /* ------------------------------------------------------------------ */
@@ -69,13 +70,85 @@ function renderInline(text: string, sourceCount: number, onOpen: (i: number) => 
           </code>
         )
       case 'bold':
-        return <strong key={i} className="font-semibold">{token.text}</strong>
+        return <strong key={i} className="font-semibold text-paper-100">{token.text}</strong>
       case 'cite':
         return <SourceTag key={i} index={token.index} onOpen={onOpen} count={sourceCount} />
       default:
         return <Fragment key={i}>{token.text}</Fragment>
     }
   })
+}
+
+/* ------------------------------------------------------------------ */
+/*  Fenced code blocks — ```lang blocks get a framed, copyable panel   */
+/* ------------------------------------------------------------------ */
+
+const FENCE_RE = /```([\w+-]*)\n?([\s\S]*?)(?:```|$)/g
+
+type Block = { type: 'text'; text: string } | { type: 'code'; lang: string; code: string }
+
+/** Split an assistant reply into prose and fenced code blocks. */
+function splitBlocks(raw: string): Block[] {
+  const blocks: Block[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+  FENCE_RE.lastIndex = 0
+  while ((m = FENCE_RE.exec(raw)) !== null) {
+    if (m.index > last) blocks.push({ type: 'text', text: raw.slice(last, m.index) })
+    blocks.push({
+      type: 'code',
+      lang: (m[1] || '').trim() || 'code',
+      code: m[2].replace(/\n$/, ''),
+    })
+    last = m.index + m[0].length
+  }
+  if (last < raw.length) blocks.push({ type: 'text', text: raw.slice(last) })
+  return blocks
+}
+
+function useCopy() {
+  const [copied, setCopied] = useState(false)
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      ta.remove()
+    }
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
+  return { copied, copy }
+}
+
+function CodeBlock({ lang, code }: { lang: string; code: string }) {
+  const { copied, copy } = useCopy()
+  return (
+    <div className="group/code my-2.5 overflow-hidden rounded-xl border border-ink-700 bg-ink-950/80">
+      <div className="flex items-center justify-between border-b border-ink-700/70 bg-ink-900/60 px-3 py-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-paper-500">
+          {lang}
+        </span>
+        <button
+          type="button"
+          onClick={() => void copy(code)}
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] text-paper-500 transition-colors duration-[120ms] hover:bg-ink-800 hover:text-amber-index"
+        >
+          {copied ? <Check size={11} className="text-success-mint" /> : <Copy size={11} />}
+          {copied ? 'copied' : 'copy'}
+        </button>
+      </div>
+      <pre className="overflow-x-auto px-3.5 py-3 font-mono text-[13px] leading-relaxed text-paper-100">
+        <code>{code}</code>
+      </pre>
+    </div>
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -97,6 +170,7 @@ export interface MessageBubbleProps {
   isStreaming?: boolean
   citations?: Source[] | null
   timestamp?: string
+  label?: string
   onOpenSource?: (index: number) => void
 }
 
@@ -106,22 +180,24 @@ export function MessageBubble({
   isStreaming = false,
   citations = null,
   timestamp,
+  label,
   onOpenSource,
 }: MessageBubbleProps) {
   const openSource = onOpenSource ?? (() => {})
   const isUser = role === 'user'
   const sources = citations ?? []
   const grounded = sources.length > 0
+  const { copied, copy } = useCopy()
 
   if (isUser) {
     return (
       <div className="group flex animate-rise justify-end">
         <div className="flex min-w-0 max-w-[520px] flex-col items-end">
-          <div className="whitespace-pre-wrap rounded-[12px] bg-ink-800 px-4 py-2.5 text-[15px] leading-relaxed text-paper-100">
+          <div className="rounded-2xl border border-ink-700/60 bg-ink-800 px-4 py-2.5 text-[15px] leading-relaxed text-paper-100 shadow-sm">
             {content}
           </div>
           {timestamp && (
-            <p className="mt-1 font-mono text-xs text-paper-500 opacity-0 transition-opacity duration-[120ms] group-hover:opacity-100">
+            <p className="mt-1.5 font-mono text-xs text-paper-500 opacity-0 transition-opacity duration-[120ms] group-hover:opacity-100">
               {formatTime(timestamp)}
             </p>
           )}
@@ -133,11 +209,37 @@ export function MessageBubble({
   return (
     <div className="group flex animate-rise justify-start">
       <div className="min-w-0 max-w-[680px] flex-1">
-        <div className={`relative ${grounded ? 'pl-4' : ''}`}>
+        <div className="mb-1.5 flex items-center gap-2">
+          <span
+            aria-hidden
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-amber-tint text-amber-index"
+          >
+            <Sparkles size={12} strokeWidth={2.2} />
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-paper-500">
+            {label ?? 'Assistant'}
+          </span>
+          {timestamp && (
+            <span className="font-mono text-xs text-paper-500 opacity-0 transition-opacity duration-[120ms] group-hover:opacity-100">
+              {formatTime(timestamp)}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => void copy(content)}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-900 px-2 py-1 font-mono text-[10px] text-paper-500 opacity-0 transition-all duration-[120ms] hover:border-amber-index hover:text-amber-index group-hover:opacity-100"
+            aria-label="Copy assistant reply"
+          >
+            {copied ? <Check size={11} className="text-success-mint" /> : <Copy size={11} />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+
+        <div className="relative rounded-2xl border border-line/70 bg-card px-[18px] py-4 shadow-sm">
           {grounded && (
             <span
               aria-hidden
-              className="absolute left-0 top-1 bottom-1 w-[2px] rounded-full bg-amber-index"
+              className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full bg-amber-index"
             />
           )}
           {isStreaming && !content ? (
@@ -146,14 +248,24 @@ export function MessageBubble({
             </div>
           ) : (
             <div className="whitespace-pre-wrap text-[16px] leading-[1.55] text-paper-100">
-              {renderInline(content, sources.length, openSource)}
+              {isStreaming
+                ? renderInline(content, sources.length, openSource)
+                : splitBlocks(content).map((block, i) =>
+                    block.type === 'code' ? (
+                      <CodeBlock key={i} lang={block.lang} code={block.code} />
+                    ) : (
+                      <Fragment key={i}>
+                        {renderInline(block.text, sources.length, openSource)}
+                      </Fragment>
+                    ),
+                  )}
             </div>
           )}
           {isStreaming && content && <StreamingUnderline />}
         </div>
 
         {grounded && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-[26px]">
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-1">
             {sources.map((s, i) => (
               <button
                 key={i}
@@ -170,12 +282,6 @@ export function MessageBubble({
               </button>
             ))}
           </div>
-        )}
-
-        {timestamp && (
-          <p className="mt-1 pl-[26px] font-mono text-xs text-paper-500 opacity-0 transition-opacity duration-[120ms] group-hover:opacity-100">
-            {formatTime(timestamp)}
-          </p>
         )}
       </div>
     </div>
