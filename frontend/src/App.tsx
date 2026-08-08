@@ -18,30 +18,32 @@ function LoadingScreen() {
   )
 }
 
-// The auth cookie hasn't been checked yet while status is 'idle' (fetchMe is
-// dispatched on mount). All guards must wait for it, otherwise a hard refresh
-// on a deep link bounces /chat/:id -> /login -> /dashboard.
-function isAuthPending(status: string) {
-  return status === 'idle' || status === 'loading'
+// The auth cookie hasn't been checked yet while `checked` is false (fetchMe
+// is dispatched on mount). All guards must wait for it, otherwise a hard
+// refresh on a deep link bounces /chat/:id -> /login -> /dashboard. Once
+// the session has been checked, a pending login/register must NOT unmount
+// the guest form — that would wipe the user's typed credentials on failure.
+function isAuthPending(checked: boolean) {
+  return !checked
 }
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { user, status } = useAppSelector((s) => s.auth)
-  if (isAuthPending(status)) return <LoadingScreen />
+  const { user, checked } = useAppSelector((s) => s.auth)
+  if (isAuthPending(checked)) return <LoadingScreen />
   if (!user) return <Navigate to="/login" replace />
   return children
 }
 
 function GuestRoute({ children }: { children: ReactNode }) {
-  const { user, status } = useAppSelector((s) => s.auth)
-  if (isAuthPending(status)) return <LoadingScreen />
+  const { user, checked } = useAppSelector((s) => s.auth)
+  if (isAuthPending(checked)) return <LoadingScreen />
   if (user) return <Navigate to="/dashboard" replace />
   return children
 }
 
 function RootRedirect() {
-  const { user, status } = useAppSelector((s) => s.auth)
-  if (isAuthPending(status)) return <LoadingScreen />
+  const { user, checked } = useAppSelector((s) => s.auth)
+  if (isAuthPending(checked)) return <LoadingScreen />
   return <Navigate to={user ? '/dashboard' : '/login'} replace />
 }
 

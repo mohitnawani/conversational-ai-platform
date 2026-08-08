@@ -12,6 +12,7 @@ interface AuthState {
   user: User | null
   status: 'idle' | 'loading' | 'succeeded' | 'failed'
   error: string | null
+  checked: boolean
 }
 
 interface AuthResponse {
@@ -53,12 +54,16 @@ const initialState: AuthState = {
   user: null,
   status: 'idle',
   error: null,
+  checked: false,
 }
 
 function resetAuthState(state: AuthState) {
   state.user = null
   state.status = 'idle'
   state.error = null
+  // Session was already checked — a logout must not put the app back into
+  // the boot spinner.
+  state.checked = true
 }
 
 const authSlice = createSlice({
@@ -77,10 +82,12 @@ const authSlice = createSlice({
         state.status = 'succeeded'
         state.user = action.payload.user
         state.error = null
+        state.checked = true
       })
       .addCase(login.rejected, (state, action) => {
         state.status = 'failed'
         state.error = (action.error.message as string) || 'Login failed'
+        state.checked = true
       })
       .addCase(register.pending, (state) => {
         state.status = 'loading'
@@ -90,10 +97,12 @@ const authSlice = createSlice({
         state.status = 'succeeded'
         state.user = action.payload.user
         state.error = null
+        state.checked = true
       })
       .addCase(register.rejected, (state, action) => {
         state.status = 'failed'
         state.error = (action.error.message as string) || 'Registration failed'
+        state.checked = true
       })
       .addCase(fetchMe.pending, (state) => {
         state.status = 'loading'
@@ -101,10 +110,12 @@ const authSlice = createSlice({
       .addCase(fetchMe.fulfilled, (state, action) => {
         state.status = 'succeeded'
         state.user = action.payload
+        state.checked = true
       })
       .addCase(fetchMe.rejected, (state) => {
         state.status = 'failed'
         state.user = null
+        state.checked = true
       })
       .addCase(logout.fulfilled, resetAuthState)
       .addCase(logout.rejected, resetAuthState)
