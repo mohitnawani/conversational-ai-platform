@@ -47,6 +47,12 @@ class Conversation(db.Model):
 
     messages = db.relationship("Message", backref="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
     summaries = db.relationship("ConversationSummary", backref="conversation", cascade="all, delete-orphan")
+    # Memory-layer rows also point at the conversation. Without these cascades
+    # Postgres rejects the DELETE (FK enforcement) while SQLite silently
+    # orphans the rows — which is why only production saw the 500.
+    entities = db.relationship("Entity", cascade="all, delete-orphan")
+    kg_triples = db.relationship("KGTriple", cascade="all, delete-orphan")
+    backfills = db.relationship("MemoryBackfill", cascade="all, delete-orphan")
 
     def to_dict(self):
         return {

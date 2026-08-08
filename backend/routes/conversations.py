@@ -1,3 +1,4 @@
+import logging
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.database import (
@@ -6,6 +7,8 @@ from models.database import (
 from services.personas import get_persona, list_personas as get_all_personas, effective_memory_type
 from services.memory_manager import STRATEGIES
 from services.memory_backfill import ensure_backfill
+
+logger = logging.getLogger(__name__)
 
 conv_bp = Blueprint("conversations", __name__)
 
@@ -188,8 +191,13 @@ def delete_conversation(conv_id):
     conv = _get_owned_conversation(conv_id)
     if not conv:
         return jsonify({"error": "conversation not found"}), 404
-    db.session.delete(conv)
-    db.session.commit()
+    try:
+        db.session.delete(conv)
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("delete conversation %s failed: %s", conv_id, exc)
+        return jsonify({"error": "Failed to delete this conversation. Please try again."}), 500
     return "", 204
 
 
