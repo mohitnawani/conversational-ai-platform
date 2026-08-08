@@ -105,11 +105,13 @@ def send_message(conv_id):
         _touch(conv)
         db.session.commit()
 
-        strategy = get_memory_strategy(conv.memory_type)
-        strategy.update(conv_id, user_text, source_message_id=user_msg.id)
-        history = strategy.get_history(conv_id)
-        memory_context = strategy.get_memory_text(conv_id)
         try:
+            strategy = get_memory_strategy(conv.memory_type)
+            # Memory extraction also calls the model — it must be inside the
+            # guard too, or a quota/model error here becomes a raw 500.
+            strategy.update(conv_id, user_text, source_message_id=user_msg.id)
+            history = strategy.get_history(conv_id)
+            memory_context = strategy.get_memory_text(conv_id)
             reply_text = run_conversation(
                 user_text, history, memory_context,
                 system_prompt=_system_prompt_for_request(data, conv),
@@ -117,6 +119,13 @@ def send_message(conv_id):
         except Exception as exc:
             db.session.rollback()
             return jsonify({"error": _friendly_llm_error(exc)}), 502
+
+        # Empty replies become invisible bubbles on the client — reject them
+        # explicitly instead of saving a blank turn.
+        if not reply_text.strip():
+            return jsonify({
+                "error": "The AI didn't return a reply. Please try again.",
+            }), 502
 
         ai_msg = Message(
             conversation_id=conv_id,
@@ -256,6 +265,18 @@ def send_message_stream(conv_id):
                     return
                 finally:
                     loop.close()
+
+                # An empty reply (model returned no text) must never become an
+                # empty bubble: remove the placeholder row (whitespace-only
+                # batches may already be committed) and surface a friendly
+                # error instead of a silent blank message.
+                if not "".join(parts).strip():
+                    db.session.query(Message).filter(Message.id == ai_msg.id).delete()
+                    db.session.commit()
+                    yield event("error", {
+                        "error": "The AI didn't return a reply. Please try again.",
+                    })
+                    return
 
                 # Tail flush, then mark the reply durable before `done` so the
                 # browser never shows more than what survives a refresh.

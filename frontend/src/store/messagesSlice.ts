@@ -129,6 +129,11 @@ export const streamMessage = createAsyncThunk<StreamResult, SendOptions>(
       } else if (event === 'token') {
         dispatch(streamAppend({ delta: (payload as { delta?: string }).delta ?? '' }))
       } else if (event === 'done') {
+        // A reply with no actual text (whitespace-only) is a failure, not a
+        // successful turn — an empty saved bubble must never render.
+        if (!(payload as Message).content?.trim()) {
+          throw new Error('The AI did not return a reply. Please try again.')
+        }
         resolved = true
         dispatch(pushAssistantMessage({ conversationId, message: payload as Message }))
       } else if (event === 'error') {
