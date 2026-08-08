@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Archive, ChevronDown, LogOut } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '@/store'
@@ -38,6 +38,25 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
   const user = useAppSelector((s) => s.auth.user)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
+  const accountRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!accountOpen) return
+    function onPointerDown(e: PointerEvent) {
+      if (!accountRef.current?.contains(e.target as Node)) {
+        setAccountOpen(false)
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setAccountOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [accountOpen])
 
   useEffect(() => {
     if (status === 'idle') {
@@ -124,32 +143,31 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
 
       {/* account footer */}
       <div className="relative border-t border-ink-700 p-3">
-        <button
-          type="button"
-          onClick={() => setAccountOpen((v) => !v)}
-          aria-expanded={accountOpen}
-          aria-haspopup="menu"
-          className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors duration-[120ms] hover:bg-ink-800"
-        >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-index text-[13px] font-semibold text-ink-950">
-            {userInitials}
-          </span>
-          <span className="min-w-0 flex-1 text-left">
-            <span className="block truncate text-[13px] text-paper-100">
-              {user?.name ?? 'Account'}
+        <div ref={accountRef}>
+          <button
+            type="button"
+            onClick={() => setAccountOpen((v) => !v)}
+            aria-expanded={accountOpen}
+            aria-haspopup="menu"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors duration-[120ms] hover:bg-ink-800"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-index text-[13px] font-semibold text-ink-950">
+              {userInitials}
             </span>
-          </span>
-          <ChevronDown
-            size={14}
-            className={`text-paper-500 transition-transform duration-200 ${
-              accountOpen ? 'rotate-180' : ''
-            }`}
-          />
-        </button>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block truncate text-[13px] text-paper-100">
+                {user?.name ?? 'Account'}
+              </span>
+            </span>
+            <ChevronDown
+              size={14}
+              className={`text-paper-500 transition-transform duration-200 ${
+                accountOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
 
-        {accountOpen && (
-          <>
-            <div className="fixed inset-0 z-30" onClick={() => setAccountOpen(false)} />
+          {accountOpen && (
             <div
               role="menu"
               className="absolute bottom-full left-3 right-3 z-40 mb-1 animate-tag rounded-lg border border-ink-700 bg-ink-800 py-1 shadow-xl"
@@ -184,8 +202,8 @@ export function AppSidebar({ onNavigate }: AppSidebarProps) {
                 <LogOut size={13} /> Log out
               </button>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       <PersonaPickerModal

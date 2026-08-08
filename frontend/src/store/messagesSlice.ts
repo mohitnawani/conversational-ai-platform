@@ -181,6 +181,15 @@ function resetMessagesState(state: MessagesState) {
   state.streamBuffer = ''
 }
 
+/** Keep every thread strictly ascending by created_at, tie-broken by id. */
+function sortThread(messages: Message[]): Message[] {
+  return [...messages].sort((a, b) =>
+    a.created_at === b.created_at
+      ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      : (a.created_at < b.created_at ? -1 : 1),
+  )
+}
+
 /** Words to reveal per interval tick so the whole reply lands in ~3 seconds. */
 function wordsPerTickFor(fullText: string): number {
   const words = (fullText.match(/ /g)?.length ?? 0) + 1
@@ -236,7 +245,7 @@ const messagesSlice = createSlice({
       const { conversationId, message } = action.payload
       const thread = state.byId[conversationId] ?? []
       if (!thread.some((m) => m.id === message.id)) {
-        state.byId[conversationId] = [...thread, message]
+        state.byId[conversationId] = sortThread([...thread, message])
       }
     },
     pushAssistantMessage(
@@ -245,10 +254,10 @@ const messagesSlice = createSlice({
     ) {
       const { conversationId, message } = action.payload
       const thread = state.byId[conversationId] ?? []
-      state.byId[conversationId] = [
+      state.byId[conversationId] = sortThread([
         ...thread.filter((m) => m.id !== message.id),
         message,
-      ]
+      ])
       state.sending = false
       state.streaming = null
       state.streamingContent = ''
@@ -270,7 +279,7 @@ const messagesSlice = createSlice({
       })
       .addCase(fetchMessages.fulfilled, (state, action) => {
         state.status = 'succeeded'
-        state.byId[action.payload.conversation.id] = action.payload.messages
+        state.byId[action.payload.conversation.id] = sortThread(action.payload.messages)
       })
       .addCase(fetchMessages.rejected, (state, action) => {
         state.status = 'failed'
@@ -284,11 +293,11 @@ const messagesSlice = createSlice({
       .addCase(sendMessage.fulfilled, (state, action) => {
         state.sending = false
         const thread = state.byId[action.payload.conversationId] ?? []
-        state.byId[action.payload.conversationId] = [
+        state.byId[action.payload.conversationId] = sortThread([
           ...thread,
           action.payload.userMessage,
           action.payload.aiMessage,
-        ]
+        ])
       })
       .addCase(sendMessage.rejected, (state, action) => {
         state.sending = false

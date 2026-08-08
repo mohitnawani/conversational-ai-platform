@@ -27,12 +27,19 @@ export const registerSchema = z
 
     confirmPassword: z.string().min(1, 'Please confirm your password'),
 
-    name: z
+    Firstname: z
       .string()
       .trim()
-      .min(1, 'Name is required')
-      .max(100, 'Name is too long')
-      .regex(/^[a-zA-Z\s'-]+$/, 'Name can only contain letters, spaces, hyphens, and apostrophes'),
+      .min(1, 'First name is required')
+      .max(100, 'First name is too long')
+   .regex(/^[a-zA-Z\s'-]+$/, 'First name can only contain letters, spaces, hyphens, and apostrophes'),
+   
+    Lastname: z
+      .string()
+      .trim()
+      .min(1, 'Last name is required')
+      .max(100, 'Last name is too long')
+      .regex(/^[a-zA-Z\s'-]+$/, 'Last name can only contain letters, spaces, hyphens, and apostrophes'),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -27,9 +26,6 @@ export function RegisterPage() {
   const dispatch = useAppDispatch()
   const { status, error } = useAppSelector((s) => s.auth)
   const loading = status === 'loading'
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [nameError, setNameError] = useState<string | undefined>(undefined)
 
   const {
     register,
@@ -38,20 +34,21 @@ export function RegisterPage() {
     formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { email: '', password: '', confirmPassword: '' },
+    defaultValues: {
+      Firstname: '',
+      Lastname: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
   })
 
   const password = watch('password')
 
   function onSubmit(values: RegisterFormValues) {
-    if (!firstName.trim() && !lastName.trim()) {
-      setNameError('Enter your first and last name')
-      return
-    }
-    setNameError(undefined)
     dispatch(
       registerUser({
-        name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+        name: `${values.Firstname.trim()} ${values.Lastname.trim()}`.trim(),
         email: values.email,
         password: values.password,
       }),
@@ -96,27 +93,28 @@ export function RegisterPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
           <div className="grid grid-cols-2 gap-3">
-            <Field id="firstName" label="First name" error={nameError}>
+            <Field id="Firstname" label="First name" error={errors.Firstname?.message}>
               <input
-                id="firstName"
+                id="Firstname"
                 type="text"
                 placeholder="Alex"
                 autoComplete="given-name"
-                aria-invalid={!!nameError}
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className={inputClass(!!nameError)}
+                aria-invalid={!!errors.Firstname}
+                aria-describedby={errors.Firstname ? 'Firstname-error' : undefined}
+                className={inputClass(!!errors.Firstname)}
+                {...register('Firstname')}
               />
             </Field>
-            <Field id="lastName" label="Last name" error={undefined}>
+            <Field id="Lastname" label="Last name" error={errors.Lastname?.message}>
               <input
-                id="lastName"
+                id="Lastname"
                 type="text"
                 placeholder="Rivera"
                 autoComplete="family-name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className={inputClass(false)}
+                aria-invalid={!!errors.Lastname}
+                aria-describedby={errors.Lastname ? 'Lastname-error' : undefined}
+                className={inputClass(!!errors.Lastname)}
+                {...register('Lastname')}
               />
             </Field>
           </div>
@@ -137,7 +135,7 @@ export function RegisterPage() {
           <Field
             id="password"
             label="Password"
-            hint="8+ chars · a-z · A-Z · 0-9"
+            hint="8-24 chars · a-z · A-Z · 0-9 · symbol"
             error={errors.password?.message}
           >
             <PasswordInput

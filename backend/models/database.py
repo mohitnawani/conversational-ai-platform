@@ -1,11 +1,16 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+import re
 import uuid
 
 db = SQLAlchemy()
 
 def gen_uuid():
     return str(uuid.uuid4())
+
+# Mirrors the frontend zod rule — anything else (e.g. test strings like "###")
+# fails and is replaced with a neutral display name.
+VALID_NAME_RE = re.compile(r"^[a-zA-Z\s'-]+$")
 
 class User(db.Model):
     __tablename__ = "users"
@@ -17,10 +22,14 @@ class User(db.Model):
 
     conversations = db.relationship("Conversation", backref="owner", cascade="all, delete-orphan")
 
+    def display_name(self):
+        name = (self.name or "").strip()
+        return name if VALID_NAME_RE.fullmatch(name) else "User"
+
     def to_dict(self):
         return {
             "id": self.id,
-            "name": self.name,
+            "name": self.display_name(),
             "email": self.email,
             "created_at": self.created_at.isoformat(),
         }

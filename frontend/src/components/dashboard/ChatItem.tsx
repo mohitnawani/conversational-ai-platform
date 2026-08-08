@@ -23,6 +23,7 @@ export function ChatItem({ chat, persona, active, onOpen, onRename, onDelete }: 
   const [confirming, setConfirming] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (editing) {
@@ -30,6 +31,24 @@ export function ChatItem({ chat, persona, active, onOpen, onRename, onDelete }: 
       inputRef.current?.select()
     }
   }, [editing])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function onPointerDown(e: PointerEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    function onKeyDown(e: globalThis.KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menuOpen])
 
   function startRename() {
     setMenuOpen(false)
@@ -103,6 +122,7 @@ export function ChatItem({ chat, persona, active, onOpen, onRename, onDelete }: 
         </div>
       ) : (
         <div
+          ref={menuRef}
           className={`relative rounded-md transition-colors duration-[120ms] ${
             active ? 'bg-ink-800 shadow-[inset_2px_0_0_0_var(--amber-index)]' : 'hover:bg-ink-800/60'
           }`}
@@ -151,28 +171,30 @@ export function ChatItem({ chat, persona, active, onOpen, onRename, onDelete }: 
             </button>
 
             {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-2 top-full z-40 mt-1 w-36 animate-tag rounded-lg border border-ink-700 bg-ink-800 py-1 shadow-xl">
-                  <button
-                    type="button"
-                    onClick={startRename}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-paper-100 transition-colors duration-[120ms] hover:bg-ink-700"
-                  >
-                    <Pencil size={12} /> Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false)
-                      setConfirming(true)
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-danger transition-colors duration-[120ms] hover:bg-ink-700"
-                  >
-                    <Trash2 size={12} /> Delete
-                  </button>
-                </div>
-              </>
+              <div
+                className="absolute right-2 top-full z-40 mt-1 w-36 animate-tag rounded-lg border border-ink-700 bg-ink-800 py-1 shadow-xl"
+                role="menu"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={startRename}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-paper-100 transition-colors duration-[120ms] hover:bg-ink-700"
+                >
+                  <Pencil size={12} /> Rename
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setConfirming(true)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-danger transition-colors duration-[120ms] hover:bg-ink-700"
+                >
+                  <Trash2 size={12} /> Delete
+                </button>
+              </div>
             )}
           </div>
         </div>

@@ -193,7 +193,7 @@ export function MessageBubble({
     return (
       <div className="group flex animate-rise justify-end">
         <div className="flex min-w-0 max-w-[520px] flex-col items-end">
-          <div className="rounded-2xl border border-ink-700/60 bg-ink-800 px-4 py-2.5 text-[15px] leading-relaxed text-paper-100 shadow-sm">
+          <div className="rounded-2xl border border-ink-700/60 bg-ink-800 px-4 py-2.5 text-[15px] leading-relaxed text-paper-100 shadow-sm [overflow-wrap:anywhere]">
             {content}
           </div>
           {timestamp && (
@@ -247,7 +247,7 @@ export function MessageBubble({
               <StreamingUnderline />
             </div>
           ) : (
-            <div className="whitespace-pre-wrap text-[16px] leading-[1.55] text-paper-100">
+            <div className="whitespace-pre-wrap text-[16px] leading-[1.55] text-paper-100 [overflow-wrap:anywhere]">
               {isStreaming
                 ? renderInline(content, sources.length, openSource)
                 : splitBlocks(content).map((block, i) =>

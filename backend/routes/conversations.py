@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.database import (
-    db, Conversation, Entity, KGTriple, ConversationSummary, PersonaMemory, UserPersona,
+    db, Conversation, Message, Entity, KGTriple, ConversationSummary, PersonaMemory, UserPersona,
 )
 from services.personas import get_persona, list_personas as get_all_personas, effective_memory_type
 from services.memory_manager import STRATEGIES
@@ -144,7 +144,12 @@ def get_conversation(conv_id):
     conv = _get_owned_conversation(conv_id)
     if not conv:
         return jsonify({"error": "conversation not found"}), 404
-    return jsonify({**conv.to_dict(), "messages": [m.to_dict() for m in conv.messages]})
+    messages = (
+        Message.query.filter_by(conversation_id=conv_id)
+        .order_by(Message.created_at.asc(), Message.id)
+        .all()
+    )
+    return jsonify({**conv.to_dict(), "messages": [m.to_dict() for m in messages]})
 
 
 @conv_bp.route("/<conv_id>", methods=["PUT"])

@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { fetchMe } from '@/store/authSlice'
 import { LoginPage } from '@/pages/LoginPage'
@@ -29,15 +29,35 @@ function isAuthPending(checked: boolean) {
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, checked } = useAppSelector((s) => s.auth)
+  const location = useLocation()
   if (isAuthPending(checked)) return <LoadingScreen />
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) {
+    // Remember where the user was headed so the auth pages can send them
+    // straight back after a successful login.
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location.pathname + location.search }}
+      />
+    )
+  }
   return children
 }
 
 function GuestRoute({ children }: { children: ReactNode }) {
   const { user, checked } = useAppSelector((s) => s.auth)
+  const location = useLocation()
   if (isAuthPending(checked)) return <LoadingScreen />
-  if (user) return <Navigate to="/dashboard" replace />
+  if (user) {
+    // After a successful login/register, send the user back to wherever the
+    // ProtectedRoute originally bounced them from.
+    const state = location.state as { from?: unknown } | null
+    const from = typeof state?.from === 'string' ? state.from : null
+    const safe =
+      from && from.startsWith('/') && !from.startsWith('/login') && !from.startsWith('/register')
+    return <Navigate to={safe ? from : '/dashboard'} replace />
+  }
   return children
 }
 
