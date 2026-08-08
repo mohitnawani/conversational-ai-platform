@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router'
+import { useParams, useNavigate } from 'react-router'
 import { Network } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { fetchMessages, streamMessage } from '@/store/messagesSlice'
@@ -8,7 +8,7 @@ import {
   fetchPersonas,
   fetchConversations,
   selectConversation,
-  updatePersona,
+  createConversation,
   updateMemoryType,
   fetchMemoryOverrides,
   setPersonaMemory,
@@ -21,7 +21,7 @@ import { SourceDrawer } from '@/components/chat/SourceDrawer'
 import { MemoryPanel } from '@/components/chat/MemoryPanel'
 import { Composer } from '@/components/chat/Composer'
 import { getCustomPersonas } from '@/components/chat/personas'
-import type { Message, Source } from '@/types/conversation'
+import type { Conversation, Message, Source } from '@/types/conversation'
 
 /*
  * Demo citations — dev builds only. The backend replies are plain text, so
@@ -103,6 +103,7 @@ function ChatEmptyState({
 
 export function ChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>()
+  const navigate = useNavigate()
   const dispatch = useAppDispatch()
   const { byId, status, sending, error, streaming, streamingContent } = useAppSelector(
     (s) => s.messages,
@@ -124,6 +125,7 @@ export function ChatPage() {
   const [drawerActive, setDrawerActive] = useState<number | null>(null)
 
   const [memoryOpen, setMemoryOpen] = useState(false)
+  const [pendingPersona, setPendingPersona] = useState<string | null>(null)
 
   const activePersona = customOverride ?? conversation?.persona ?? personas[0]?.id ?? 'mentor'
   const customPersona = customOverride
@@ -184,22 +186,50 @@ export function ChatPage() {
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [messages.length, sending, streamingContent])
 
-  function handlePersonaSelect(id: string) {
-    if (id.startsWith('custom-')) {
-      setCustomOverride(id)
-      if (conversationId) {
-        localStorage.setItem(`mnemo:conversation-persona:${conversationId}`, id)
-      }
-      return
-    }
-    setCustomOverride(null)
-    if (conversationId) {
-      localStorage.removeItem(`mnemo:conversation-persona:${conversationId}`)
-    }
-    if (conversationId && id !== conversation?.persona) {
-      dispatch(updatePersona({ id: conversationId, persona: id }))
-    }
+  function personaDisplayName(id: string): string {
+    return (
+      getCustomPersonas().find((p) => p.id === id)?.name
+      ?? personas.find((p) => p.id === id)?.name
+      ?? id
+    )
   }
+
+  function handlePersonaSelect(id: string) {
+    // Every persona gets its own chat: switching asks first, then opens a
+    // fresh conversation with that persona's default memory.
+    if (id === activePersona || pendingPersona !== null) return
+    setPendingPersona(id)
+  }
+
+  function cancelPersonaSwitch() {
+    setPendingPersona(null)
+  }
+
+  async function confirmPersonaSwitch() {
+    const id = pendingPersona
+    if (!id) return
+    setPendingPersona(null)
+    const isCustom = id.startsWith('custom-')
+    const res = await dispatch(
+      createConversation({ persona: isCustom ? undefined : id }),
+    )
+    if (res.meta.requestStatus !== 'fulfilled') return
+    const conv = res.payload as Conversation
+    if (isCustom) {
+      localStorage.setItem(`mnemo:conversation-persona:${conv.id}`, id)
+    }
+    localStorage.setItem('activeConversationId', conv.id)
+    navigate(`/chat/${conv.id}`)
+  }
+
+  useEffect(() => {
+    if (!pendingPersona) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPendingPersona(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pendingPersona])
 
   function openSources(sources: Source[], index: number) {
     setDrawerSources(sources)
@@ -351,6 +381,49 @@ export function ChatPage() {
           onMemoryTypeChange={handleMemoryTypeChange}
         />
       </div>
+
+      {pendingPersona && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="persona-switch-title"
+          className="fixed inset-0 z-50 grid place-items-center bg-ink-950/70 px-4 backdrop-blur-sm"
+          onClick={cancelPersonaSwitch}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-ink-700 bg-ink-900 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p
+              id="persona-switch-title"
+              className="font-display text-lg font-medium leading-snug text-paper-100"
+            >
+              Start a new chat with {personaDisplayName(pendingPersona)}?
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-paper-500">
+              Each persona keeps its own chat with its own default memory.
+              This opens a fresh conversation — your current chat stays
+              exactly as it is.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelPersonaSwitch}
+                className="rounded-lg border border-ink-700 px-3.5 py-1.5 text-xs font-medium text-paper-500 transition-colors duration-[120ms] hover:border-ink-700 hover:text-paper-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmPersonaSwitch()}
+                className="rounded-lg bg-amber-index px-3.5 py-1.5 text-xs font-medium text-ink-950 transition-opacity duration-[120ms] hover:opacity-90"
+              >
+                Start new chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="px-5 pb-2 text-xs text-red-danger">
