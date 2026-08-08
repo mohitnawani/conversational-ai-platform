@@ -176,7 +176,9 @@ def send_message_stream(conv_id):
             token_count=count_tokens(reply),
         )
         db.session.add(ai_msg)
-        bound_conv = db.session.merge(conv)  # re-attach so updated_at persists
+        # Re-fetch, not merge: merging the detached conversation would trigger
+        # the delete-orphan cascade and sweep the just-inserted AI reply away.
+        bound_conv = db.session.get(Conversation, conv_id)
         _touch(bound_conv)
         db.session.commit()
 
