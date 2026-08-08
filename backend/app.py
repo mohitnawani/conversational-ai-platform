@@ -13,6 +13,7 @@ from services import token_blocklist
 FRONTEND_DIST = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "dist")
 )
+print(f"[boot] FRONTEND_DIST={FRONTEND_DIST} exists={os.path.isdir(FRONTEND_DIST)}")
 
 def create_app():
     app = Flask(__name__)
@@ -51,7 +52,15 @@ def create_app():
             if path and os.path.isfile(target):
                 return send_from_directory(FRONTEND_DIST, path)
             return send_from_directory(FRONTEND_DIST, "index.html")
+<<<<<<< HEAD
         return {"status": "ok", "service": "conversational-ai-platform"}
+=======
+        return {
+            "service": "conversational-ai-platform",
+            "status": "degraded",
+            "frontend": "not built — run `npm run build` in frontend/",
+        }
+>>>>>>> main
 
     return app
 
