@@ -32,6 +32,10 @@ def create_app():
     with app.app_context():
         db.create_all()
 
+    @app.route("/")
+    def home():
+        return {"status": "ok", "service": "conversational-ai-platform"}
+
     @app.route("/api/health")
     def health():
         return {"status": "ok"}
