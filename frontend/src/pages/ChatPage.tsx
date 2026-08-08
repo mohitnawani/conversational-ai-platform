@@ -108,9 +108,13 @@ export function ChatPage() {
   const { byId, status, sending, error, streaming, streamingContent } = useAppSelector(
     (s) => s.messages,
   )
-  const { conversations, personas, personasStatus, personaMemory } = useAppSelector(
-    (s) => s.conversations,
-  )
+  const {
+    conversations,
+    status: conversationsStatus,
+    personas,
+    personasStatus,
+    personaMemory,
+  } = useAppSelector((s) => s.conversations)
   const memoryState = useAppSelector((s) => s.memory)
   const conversation = conversations.find((c) => c.id === conversationId)
   const messages = conversationId ? (byId[conversationId] ?? []) : []
@@ -135,7 +139,7 @@ export function ChatPage() {
     ?? personas.find((p) => p.id === activePersona)?.name
     ?? activePersona.toUpperCase()
 
-  useEffect(() => {
+useEffect(() => {
     if (conversationId) {
       // Redux is rebuilt on every browser refresh. Reload both the sidebar
       // metadata and the complete thread from the backend rather than relying
@@ -146,6 +150,22 @@ export function ChatPage() {
       dispatch(fetchMessages(conversationId))
     }
   }, [conversationId, dispatch])
+
+  // A deleted chat must not stay on screen: when the loaded conversation list
+  // no longer contains the open conversation (e.g. last chat deleted from the
+  // sidebar), move to the newest remaining chat — or the dashboard if none.
+  useEffect(() => {
+    if (!conversationId || conversationsStatus !== 'succeeded') return
+    if (conversations.some((c) => c.id === conversationId)) return
+    const next = conversations[0]
+    if (next) {
+      localStorage.setItem('activeConversationId', next.id)
+      navigate(`/chat/${next.id}`)
+    } else {
+      localStorage.removeItem('activeConversationId')
+      navigate('/dashboard')
+    }
+  }, [conversationId, conversations, conversationsStatus, navigate])
 
   useEffect(() => {
     if (personasStatus === 'idle') {
