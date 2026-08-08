@@ -190,12 +190,6 @@ function sortThread(messages: Message[]): Message[] {
   )
 }
 
-/** Words to reveal per interval tick so the whole reply lands in ~3 seconds. */
-function wordsPerTickFor(fullText: string): number {
-  const words = (fullText.match(/ /g)?.length ?? 0) + 1
-  return Math.max(1, Math.ceil(words / 100))
-}
-
 const messagesSlice = createSlice({
   name: 'messages',
   initialState,
@@ -208,31 +202,19 @@ const messagesSlice = createSlice({
       state.error = null
     },
     streamAppend(state, action: PayloadAction<{ delta: string }>) {
-      state.streamBuffer += action.payload.delta
+      // Live: every SSE `token` event renders immediately — the server's
+      // chunk cadence IS the pacing (no artificial typing throttle).
+      state.streamingContent += action.payload.delta
+      state.streamBuffer = ''
     },
     streamTick(state) {
+      // Safety flush only: the buffer is normally empty because streamAppend
+      // renders inline. Kept as a catch-up for dispatch ordering edge cases.
       if (state.streaming === null) return
-      const buffer = state.streamBuffer
-      if (!buffer) return
-      const wordsPerTick = wordsPerTickFor(state.streamingContent + buffer)
-      let end = -1
-      let words = 0
-      for (let i = 0; i < buffer.length; i++) {
-        if (buffer[i] === ' ') {
-          words++
-          if (words === wordsPerTick) {
-            end = i + 1
-            break
-          }
-        }
-      }
-      if (end === -1) {
-        state.streamingContent += buffer
+      if (state.streamBuffer) {
+        state.streamingContent += state.streamBuffer
         state.streamBuffer = ''
-        return
       }
-      state.streamingContent += buffer.slice(0, end)
-      state.streamBuffer = buffer.slice(end)
     },
     streamFlush(state) {
       state.streamingContent += state.streamBuffer

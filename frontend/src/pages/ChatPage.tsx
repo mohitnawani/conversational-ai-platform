@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router'
 import { Network } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '@/store'
-import { fetchMessages, streamMessage, streamTick } from '@/store/messagesSlice'
+import { fetchMessages, streamMessage } from '@/store/messagesSlice'
 import { fetchMemory } from '@/store/memorySlice'
 import {
   fetchPersonas,
@@ -178,16 +178,6 @@ export function ChatPage() {
       dispatch(fetchMemory(conversationId))
     }
   }, [messages.length, sending, memoryOpen, conversationId, conversation?.memory_type, dispatch])
-
-  // Pace the reveal: backend chunks land in the store buffer instantly, but
-  // the UI only shows a few words per tick so the reply types itself out.
-  useEffect(() => {
-    if (!sending) return
-    const timer = setInterval(() => {
-      dispatch(streamTick())
-    }, 30)
-    return () => clearInterval(timer)
-  }, [sending, dispatch])
 
   useEffect(() => {
     const el = scrollRef.current

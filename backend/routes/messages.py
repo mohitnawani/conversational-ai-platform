@@ -1,6 +1,7 @@
 import asyncio
 import json
 import threading
+import time
 from datetime import datetime
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -133,14 +134,17 @@ def send_message(conv_id):
 @msg_bp.route("/<conv_id>/message/stream", methods=["POST"])
 @jwt_required()
 def send_message_stream(conv_id):
-    """SSE-streamed reply.
+    """SSE-streamed reply — Gemini tokens go to the browser one by one.
 
     Wire format (text/event-stream):
       event: user_message  data: {...saved user Message...}
-      event: token         data: {"delta": "text chunk"}
+      event: conversation  data: {...conversation snapshot...}
+      event: token         data: {"delta": "chunk"}
       event: done          data: {...saved assistant Message...}
       event: error         data: {"error": "..."}
-    Listen with fetch() + ReadableStream (EventSource only supports GET).
+    While the model is thinking, bare `: ping` comments keep the connection
+    alive (frontend ignores anything that isn't an event: line; EventSource
+    only supports GET, so the browser listens with fetch + ReadableStream).
     """
     conv = _get_owned_conversation(conv_id)
     if not conv:
@@ -178,15 +182,31 @@ def send_message_stream(conv_id):
         # Snapshot while the request session is still alive — the streamed
         # response runs after teardown, where lazy loads (conv.messages) fail.
         conv_snapshot = conv.to_dict()
+        # Commit cadence for the token stream: persist a batch of Gemini
+        # chunks before those tokens reach the browser, so the reply column
+        # in the DB is always as far along as the text on screen — a refresh
+        # or crash can never leave a visible answer unpersisted.
+        token_batch = 8
+        token_batch_seconds = 0.35
 
         def generate():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
                 yield event("user_message", user_msg.to_dict())
                 yield event("conversation", conv_snapshot)
 
-                # Finish the model work and commit the answer before exposing
-                # any reply text to the browser, so a refresh can never leave
-                # a visible answer unpersisted.
+                # Placeholder row: gives the streaming reply a stable id;
+                # every batch commit below grows `content` incrementally.
+                ai_msg = Message(
+                    conversation_id=conv_id,
+                    role="assistant",
+                    content="",
+                    token_count=0,
+                )
+                db.session.add(ai_msg)
+                db.session.flush()
+
                 stream = stream_parallel(
                     conv_id,
                     user_text,
@@ -196,13 +216,34 @@ def send_message_stream(conv_id):
                     memory_type=conv.memory_type,
                     source_message_id=user_msg.id,
                 )
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                parts = []
+                parts: list[str] = []
+                pending: list[str] = []
+                last_commit = time.time()
                 try:
                     while True:
-                        chunk = loop.run_until_complete(stream.__anext__())
+                        try:
+                            chunk = loop.run_until_complete(
+                                asyncio.wait_for(stream.__anext__(), 15)
+                            )
+                        except asyncio.TimeoutError:
+                            # Model is still thinking with no output yet: an
+                            # SSE comment (handled nowhere by the frontend)
+                            # keeps gunicorn's silence timeout from killing
+                            # the worker mid-reply.
+                            yield ": ping\n\n"
+                            continue
                         parts.append(chunk)
+                        pending.append(chunk)
+                        if (
+                            len(pending) >= token_batch
+                            or time.time() - last_commit >= token_batch_seconds
+                        ):
+                            ai_msg.content = "".join(parts)
+                            db.session.commit()
+                            last_commit = time.time()
+                            for c in pending:
+                                yield event("token", {"delta": c})
+                            pending = []
                 except StopAsyncIteration:
                     pass
                 except Exception as exc:
@@ -212,25 +253,18 @@ def send_message_stream(conv_id):
                 finally:
                     loop.close()
 
-                reply = "".join(parts)
-                ai_msg = Message(
-                    conversation_id=conv_id,
-                    role="assistant",
-                    content=reply,
-                    token_count=count_tokens(reply),
-                )
-                db.session.add(ai_msg)
+                # Tail flush, then mark the reply durable before `done` so the
+                # browser never shows more than what survives a refresh.
+                ai_msg.content = "".join(parts)
+                ai_msg.token_count = count_tokens(ai_msg.content)
                 # Re-fetch, not merge: merging the detached conversation would
-                # trigger the delete-orphan cascade and sweep the just-inserted
-                # AI reply away.
+                # trigger the delete-orphan cascade and sweep just-inserted
+                # messages away.
                 bound_conv = db.session.get(Conversation, conv_id)
                 _touch(bound_conv)
                 db.session.commit()
-
-                # The frontend still receives chunks for its typing animation,
-                # but all of them now belong to a reply that is safely stored.
-                for chunk in parts:
-                    yield event("token", {"delta": chunk})
+                for c in pending:
+                    yield event("token", {"delta": c})
                 yield event("done", ai_msg.to_dict())
             finally:
                 lock.release()
